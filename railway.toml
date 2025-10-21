@@ -1,9 +1,23 @@
-# Force Railway to install .NET 8 SDK
-NIXPACKS_PKGS = "dotnet-sdk_8"
+# Railway configuration for DialyGo backend (.NET 8)
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "cd backend && dotnet restore && dotnet publish -c Release -o ../out"
+
+# Use .NET 8 SDK explicitly
+nixpacksPkgs = ["dotnet-sdk_8"]
+
+# Build commands — make sure your .csproj is inside the backend folder
+buildCommand = """
+cd backend
+dotnet restore
+dotnet publish -c Release -o ../out
+"""
 
 [deploy]
+# Start the compiled app
 startCommand = "dotnet out/DialyGo.dll"
+
+[env]
+ASPNETCORE_URLS = "http://+:8080"
+DOTNET_RUNNING_IN_CONTAINER = "true"
+
