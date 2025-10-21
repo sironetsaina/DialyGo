@@ -1,6 +1,10 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "dotnet publish ./backend/DialyGo.csproj -c Release -o out"
+buildCommand = """
+cd backend
+dotnet restore
+dotnet publish -c Release -o ../out
+"""
 
 [deploy]
-startCommand = "dotnet out/backend.dll"
+startCommand = "dotnet out/DialyGo.dll"
