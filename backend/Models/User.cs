@@ -19,5 +19,5 @@ public partial class User
 
     public virtual ICollection<LoginSession> LoginSessions { get; set; } = new List<LoginSession>();
 
-    public virtual UserRole Role { get; set; } = null!;
+    public virtual UserRole? Role { get; set; } = null!;
 }

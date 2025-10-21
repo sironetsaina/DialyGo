@@ -10,9 +10,18 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<MobileDialysisDbContext>(options =>
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        new MySqlServerVersion(new Version(8, 0, 36))
+        new MySqlServerVersion(new Version(8, 0, 36)),
+        mysqlOptions =>
+        {
+            mysqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorNumbersToAdd: null
+            );
+        }
     )
 );
+
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -28,6 +37,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
-app.MapControllers();
 
-app.Run();
+builder.Services.AddCors();
+
+app.UseCors(builder =>
+    builder
+        .WithOrigins("http://localhost:3000") // your React app
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+);
+
+app.MapControllers(); 
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+
+app.Run();  
