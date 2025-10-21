@@ -8,3 +8,6 @@ dotnet publish -c Release -o ../out
 
 [deploy]
 startCommand = "dotnet out/DialyGo.dll"
+
+[variables]
+NIXPACKS_PKGS = "dotnet-sdk_8"
