@@ -16,6 +16,7 @@ public partial class TreatmentRecord
     public string? TreatmentDetails { get; set; }
 
     public DateTime? TreatmentDate { get; set; }
+    public string? TreatmentHistoryJson { get; set; }
 
     public virtual Appointment Appointment { get; set; } = null!;
 

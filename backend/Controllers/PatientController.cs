@@ -10,130 +10,239 @@ namespace backend.Controllers
     public class PatientController : ControllerBase
     {
         private readonly MobileDialysisDbContext _context;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _config;
 
-        public PatientController(MobileDialysisDbContext context)
+        public PatientController(
+            MobileDialysisDbContext context,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration config)
         {
             _context = context;
+            _httpClientFactory = httpClientFactory;
+            _config = config;
         }
 
-        [HttpGet("{id}")]
-        public async Task<ActionResult<PatientDetailDto>> GetPatientDetails(int id)
+        // ================================
+        // GET PATIENT DETAILS
+        // ================================
+        [HttpGet("{patientId}")]
+        public async Task<ActionResult<PatientDetailDto>> GetPatient(int patientId)
         {
-            var patient = await _context.Patients.FindAsync(id);
-            if (patient == null) return NotFound();
+            var patient = await _context.Patients
+                .Where(p => p.PatientId == patientId)
+                .Select(p => new PatientDetailDto
+                {
+                    PatientId = p.PatientId,
+                    Name = p.Name,
+                    Gender = p.Gender,
+                    DateOfBirth = p.DateOfBirth,
+                    PhoneNumber = p.PhoneNumber,
+                    Email = p.Email,
+                    Address = p.Address,
+                    MedicalHistory = p.MedicalHistory,
+                    AppointmentID = p.Appointments.Select(a => new AppointmentDto
+                    {
+                        AppointmentId = a.AppointmentId,
+                        AppointmentDate = a.AppointmentDate,
+                        Status = a.Status,
+                        Notes = a.Notes,
+                        TruckPlate = a.Truck != null ? a.Truck.LicensePlate : null,
+                        TruckLocation = a.Truck != null ? a.Truck.CurrentLocation : null
+                    }).ToList(),
+                    TreatmentRecords = p.TreatmentRecords
+                })
+                .FirstOrDefaultAsync();
 
-            return Ok(new PatientDetailDto
-            {
-                PatientId = patient.PatientId,
-                Name = patient.Name,
-                Gender = patient.Gender,
-                DateOfBirth = patient.DateOfBirth,
-                PhoneNumber = patient.PhoneNumber,
-                Email = patient.Email,
-                Address = patient.Address,
-                MedicalHistory = patient.MedicalHistory
-            });
+            if (patient == null) 
+                return NotFound("❌ Patient not found.");
+
+            return Ok(patient);
         }
 
-        [HttpGet("appointments/available/{truckId}")]
-        public async Task<ActionResult<IEnumerable<DateTime>>> GetAvailableAppointments(int truckId)
+        // ================================
+        // GET LIST OF TRUCKS
+        // ================================
+        [HttpGet("trucks")]
+        public async Task<ActionResult<IEnumerable<TruckDto>>> GetTrucks()
         {
-            var bookedDates = await _context.Appointments
-                .Where(a => a.TruckId == truckId && a.Status != "Cancelled")
-                .Select(a => a.AppointmentDate)
+            var trucks = await _context.Trucks
+                .Select(t => new TruckDto
+                {
+                    TruckId = t.TruckId,
+                    LicensePlate = t.LicensePlate,
+                    CurrentLocation = t.CurrentLocation,
+                    Capacity = t.Capacity
+                })
                 .ToListAsync();
 
-            // Example: allow booking for next 7 days, 9am–5pm hourly
-            var available = new List<DateTime>();
-            for (int day = 0; day < 7; day++)
-            {
-                var date = DateTime.Today.AddDays(day);
-                for (int hour = 9; hour <= 17; hour++)
-                {
-                    var slot = date.AddHours(hour);
-                    if (!bookedDates.Contains(slot))
-                        available.Add(slot);
-                }
-            }
-
-            return Ok(available);
+            return Ok(trucks);
         }
 
-        [HttpPost("appointments")]
-        public async Task<ActionResult<AppointmentDto>> BookAppointment([FromBody] AppointmentCreateDto dto)
+        // ================================
+        // GET AVAILABLE SLOTS FOR TRUCK + DATE
+        // ================================
+        [HttpGet("appointments/available/{truckId}/{date}")]
+        public async Task<ActionResult<IEnumerable<string>>> GetAvailableSlots(int truckId, string date)
         {
-            var exists = await _context.Appointments.AnyAsync(a =>
-                a.TruckId == dto.TruckId &&
-                a.AppointmentDate == dto.AppointmentDate &&
-                a.Status != "Cancelled");
+            var truck = await _context.Trucks.FindAsync(truckId);
+            if (truck == null) return NotFound("Truck not found");
 
-            if (exists) return Conflict("This time slot is already booked.");
+            if (!DateTime.TryParse(date, out var selectedDate))
+                return BadRequest("Invalid date format. Use yyyy-MM-dd");
+
+            var slots = new List<string>();
+            var start = new TimeSpan(6, 0, 0);
+            var end = new TimeSpan(20, 0, 0);
+
+            for (var t = start; t < end; t = t.Add(TimeSpan.FromHours(4)))
+            {
+                var slotStart = t;
+                var slotEnd = t.Add(TimeSpan.FromHours(4));
+
+                var count = await _context.Appointments.CountAsync(a =>
+                    a.TruckId == truckId &&
+                    a.Status != "Cancelled" &&
+                    a.AppointmentDate.Date == selectedDate.Date &&
+                    a.AppointmentDate.TimeOfDay >= slotStart &&
+                    a.AppointmentDate.TimeOfDay < slotEnd
+                );
+
+                if (count < truck.Capacity)
+                    slots.Add($"{slotStart:hh\\:mm}-{slotEnd:hh\\:mm}");
+            }
+
+            return Ok(slots);
+        }
+
+        // ================================
+        // BOOK APPOINTMENT
+        // ================================
+        [HttpPost("appointments")]
+        public async Task<ActionResult> BookAppointment([FromBody] AppointmentCreateDto dto)
+        {
+            var patient = await _context.Patients.FindAsync(dto.PatientId);
+            var truck = await _context.Trucks.FindAsync(dto.TruckId);
+
+            if (patient == null || truck == null)
+                return BadRequest("Invalid patient or truck.");
+
+            // Check if patient already has an appointment that day
+            var dateOnly = dto.AppointmentDate.Date;
+            var existingAppointment = await _context.Appointments
+                .AnyAsync(a => a.PatientId == dto.PatientId && a.AppointmentDate.Date == dateOnly && a.Status != "Cancelled");
+
+            if (existingAppointment)
+                return Conflict("Patient already has an appointment that day.");
+
+            // Determine slot start/end for the chosen appointment
+            var appointmentTime = dto.AppointmentDate.TimeOfDay;
+            var slotStart = new TimeSpan(appointmentTime.Hours / 4 * 4, 0, 0);
+            var slotEnd = slotStart.Add(TimeSpan.FromHours(4));
+
+            // Check truck capacity
+            var bookedCount = await _context.Appointments.CountAsync(a =>
+                a.TruckId == dto.TruckId &&
+                a.Status != "Cancelled" &&
+                a.AppointmentDate.TimeOfDay >= slotStart &&
+                a.AppointmentDate.TimeOfDay < slotEnd);
+
+            if (bookedCount >= truck.Capacity)
+                return Conflict("Slot is fully booked.");
 
             var appointment = new Appointment
             {
                 PatientId = dto.PatientId,
                 TruckId = dto.TruckId,
                 AppointmentDate = dto.AppointmentDate,
-                Status = "Booked"
+                Status = "Scheduled"
             };
 
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetAppointment), new { id = appointment.AppointmentId }, new AppointmentDto
+            // ✅ Send SMS notification
+            try
             {
-                AppointmentId = appointment.AppointmentId,
-                AppointmentDate = appointment.AppointmentDate,
-                Status = appointment.Status,
-                TruckPlate = (await _context.Trucks.FindAsync(dto.TruckId))?.LicensePlate
-            });
+                var client = _httpClientFactory.CreateClient();
+                var smsController = new SmsController(client, _config);
+                await smsController.SendSms(new SmsController.SmsRequest
+                {
+                    PhoneNumber = patient.PhoneNumber,
+                    Message = $"Hello {patient.Name}, your appointment is confirmed for {dto.AppointmentDate:dddd, MMM dd yyyy HH:mm} on truck {truck.LicensePlate}."
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"SMS error: {ex.Message}");
+            }
+
+            return Ok(new { Message = "Appointment booked successfully!" });
         }
 
-        [HttpGet("appointments/{id}")]
-        public async Task<ActionResult<AppointmentDto>> GetAppointment(int id)
+        // ================================
+        // GET APPOINTMENTS FOR PATIENT
+        // ================================
+        [HttpGet("appointments/{patientId}")]
+        public async Task<ActionResult<IEnumerable<AppointmentDto>>> GetAppointments(int patientId)
         {
-            var appointment = await _context.Appointments
+            var exists = await _context.Patients.AnyAsync(p => p.PatientId == patientId);
+            if (!exists) return NotFound("❌ Patient not found.");
+
+            var appointments = await _context.Appointments
                 .Include(a => a.Truck)
-                .FirstOrDefaultAsync(a => a.AppointmentId == id);
+                .Where(a => a.PatientId == patientId)
+                .OrderByDescending(a => a.AppointmentDate)
+                .Select(a => new AppointmentDto
+                {
+                    AppointmentId = a.AppointmentId,
+                    AppointmentDate = a.AppointmentDate,
+                    Status = a.Status,
+                    Notes = a.Notes,
+                    TruckPlate = a.Truck != null ? a.Truck.LicensePlate : null,
+                    TruckLocation = a.Truck != null ? a.Truck.CurrentLocation : null
+                })
+                .ToListAsync();
 
-            if (appointment == null) return NotFound();
-
-            return Ok(new AppointmentDto
-            {
-                AppointmentId = appointment.AppointmentId,
-                AppointmentDate = appointment.AppointmentDate,
-                Status = appointment.Status,
-                Notes = appointment.Notes,
-                TruckPlate = appointment.Truck?.LicensePlate
-            });
+            return Ok(appointments);
         }
 
-        [HttpPut("appointments/{id}/cancel")]
-        public async Task<IActionResult> CancelAppointment(int id)
+        // ================================
+        // CANCEL APPOINTMENT
+        // ================================
+        [HttpPost("appointments/cancel/{appointmentId}")]
+        public async Task<ActionResult> CancelAppointment(int appointmentId)
         {
-            var appointment = await _context.Appointments.FindAsync(id);
-            if (appointment == null) return NotFound();
+            var appointment = await _context.Appointments.FindAsync(appointmentId);
+            if (appointment == null) return NotFound("Appointment not found.");
+            if (appointment.Status == "Cancelled") return BadRequest("Appointment already cancelled.");
 
             appointment.Status = "Cancelled";
-            _context.Entry(appointment).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return NoContent();
-        }
-
-        
-        [HttpGet("trucks/{truckId}/location")]
-        public async Task<ActionResult<TruckLocationDto>> GetTruckLocation(int truckId)
-        {
-            var truck = await _context.Trucks.FindAsync(truckId);
-            if (truck == null) return NotFound();
-
-            return Ok(new TruckLocationDto
+            // Send cancellation SMS
+            try
             {
-                TruckId = truck.TruckId,
-                LicensePlate = truck.LicensePlate,
-                CurrentLocation = truck.CurrentLocation
-            });
+                var patient = await _context.Patients.FindAsync(appointment.PatientId);
+                var truck = await _context.Trucks.FindAsync(appointment.TruckId);
+
+                if (patient != null && truck != null)
+                {
+                    var client = _httpClientFactory.CreateClient();
+                    var smsController = new SmsController(client, _config);
+                    await smsController.SendSms(new SmsController.SmsRequest
+                    {
+                        PhoneNumber = patient.PhoneNumber,
+                        Message = $"Hello {patient.Name}, your appointment on {appointment.AppointmentDate:dddd, MMM dd yyyy HH:mm} has been cancelled."
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"SMS error: {ex.Message}");
+            }
+
+            return Ok(new { Message = "Appointment cancelled successfully!" });
         }
     }
 }

@@ -66,7 +66,7 @@ namespace backend.Controllers
             var user = new User
             {
                 Username = dto.Username,
-                Password = dto.Password, // Hash this in production
+                Password = dto.Password, 
                 RoleId = dto.RoleId,
                 RelatedId = dto.RelatedId,
                 IsActive = dto.IsActive
@@ -98,7 +98,7 @@ namespace backend.Controllers
             }
 
             user.Username = dto.Username;
-            user.Password = dto.Password; // Hash in production
+            user.Password = dto.Password; 
             user.RoleId = dto.RoleId;
             user.RelatedId = dto.RelatedId;
             user.IsActive = dto.IsActive;

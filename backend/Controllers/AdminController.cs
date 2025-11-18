@@ -16,7 +16,21 @@ namespace backend.Controllers
             _context = context;
         }
 
-        // DOCTOR CRUD 
+        [HttpGet("doctors")]
+        public async Task<ActionResult<IEnumerable<Doctor>>> GetDoctors()
+        {
+            var doctors = await _context.Doctors.ToListAsync();
+            return Ok(doctors);
+        }
+
+        [HttpGet("doctors/{id}")]
+        public async Task<ActionResult<Doctor>> GetDoctor(int id)
+        {
+            var doctor = await _context.Doctors.FindAsync(id);
+            if (doctor == null) return NotFound();
+            return Ok(doctor);
+        }
+
         [HttpPost("doctors")]
         public async Task<IActionResult> CreateDoctor([FromBody] DoctorCreateDto dto)
         {
@@ -34,15 +48,49 @@ namespace backend.Controllers
             return CreatedAtAction(nameof(GetDoctor), new { id = doctor.DoctorId }, doctor);
         }
 
-        [HttpGet("doctors/{id}")]
-        public async Task<IActionResult> GetDoctor(int id)
+        [HttpPut("doctors/{id}")]
+        public async Task<IActionResult> UpdateDoctor(int id, [FromBody] DoctorCreateDto dto)
         {
             var doctor = await _context.Doctors.FindAsync(id);
             if (doctor == null) return NotFound();
-            return Ok(doctor);
+
+            doctor.Name = dto.Name;
+            doctor.Email = dto.Email;
+            doctor.Specialization = dto.Specialization;
+            doctor.PhoneNumber = dto.PhoneNumber;
+
+            _context.Entry(doctor).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
-        // ================= NURSE CRUD =================
+        [HttpDelete("doctors/{id}")]
+        public async Task<IActionResult> DeleteDoctor(int id)
+        {
+            var doctor = await _context.Doctors.FindAsync(id);
+            if (doctor == null) return NotFound();
+
+            _context.Doctors.Remove(doctor);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpGet("nurses")]
+        public async Task<ActionResult<IEnumerable<Nurse>>> GetNurses()
+        {
+            var nurses = await _context.Nurses.ToListAsync();
+            return Ok(nurses);
+        }
+
+        [HttpGet("nurses/{id}")]
+        public async Task<ActionResult<Nurse>> GetNurse(int id)
+        {
+            var nurse = await _context.Nurses.FindAsync(id);
+            if (nurse == null) return NotFound();
+            return Ok(nurse);
+        }
+
         [HttpPost("nurses")]
         public async Task<IActionResult> CreateNurse([FromBody] NurseCreateDto dto)
         {
@@ -55,29 +103,61 @@ namespace backend.Controllers
 
             _context.Nurses.Add(nurse);
             await _context.SaveChangesAsync();
-
             return CreatedAtAction(nameof(GetNurse), new { id = nurse.NurseId }, nurse);
         }
 
-        [HttpGet("nurses/{id}")]
-        public async Task<IActionResult> GetNurse(int id)
+        [HttpPut("nurses/{id}")]
+        public async Task<IActionResult> UpdateNurse(int id, [FromBody] NurseCreateDto dto)
         {
             var nurse = await _context.Nurses.FindAsync(id);
             if (nurse == null) return NotFound();
-            return Ok(nurse);
+
+            nurse.Name = dto.Name;
+            nurse.Email = dto.Email;
+            nurse.PhoneNumber = dto.PhoneNumber;
+
+            _context.Entry(nurse).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
-        //USERS Crud
+        [HttpDelete("nurses/{id}")]
+        public async Task<IActionResult> DeleteNurse(int id)
+        {
+            var nurse = await _context.Nurses.FindAsync(id);
+            if (nurse == null) return NotFound();
+
+            _context.Nurses.Remove(nurse);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpGet("users")]
+        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        {
+            var users = await _context.Users.ToListAsync();
+            return Ok(users);
+        }
+
+        [HttpGet("users/{id}")]
+        public async Task<ActionResult<User>> GetUser(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+            return Ok(user);
+        }
+
         [HttpPost("users")]
         public async Task<IActionResult> CreateUser([FromBody] UserCreateDto dto)
         {
             var user = new User
             {
                 Username = dto.Username,
-                Password = dto.Password, // TODO: Hash before saving in production!
+                Password = dto.Password,
                 RoleId = dto.RoleId,
                 RelatedId = dto.RelatedId,
-                IsActive = true
+                IsActive = dto.IsActive
             };
 
             _context.Users.Add(user);
@@ -86,50 +166,63 @@ namespace backend.Controllers
             return CreatedAtAction(nameof(GetUser), new { id = user.UserId }, user);
         }
 
-        [HttpGet("users/{id}")]
-        public async Task<IActionResult> GetUser(int id)
+        [HttpPut("users/{id}")]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UserCreateDto dto)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null) return NotFound();
-            return Ok(user);
+
+            user.Username = dto.Username;
+            user.Password = dto.Password;
+            user.RoleId = dto.RoleId;
+            user.RelatedId = dto.RelatedId;
+            user.IsActive = dto.IsActive;
+
+            _context.Entry(user).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
-        //=
-        [HttpGet("trucks")]
-        public async Task<ActionResult<IEnumerable<TruckDto>>> GetTrucks()
+        [HttpDelete("users/{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
         {
-            var trucks = await _context.Trucks
-                .Select(t => new TruckDto
-                {
-                    TruckId = t.TruckId,
-                    LicensePlate = t.LicensePlate,
-                    CurrentLocation = t.CurrentLocation,
-                    Capacity = t.Capacity
-                })
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpGet("patients")]
+        public async Task<ActionResult<IEnumerable<object>>> GetPatients()
+        {
+            var patients = await _context.Patients
+                .Select(p => new { p.PatientId, p.Name })
                 .ToListAsync();
 
+            return Ok(patients);
+        }
+
+        // ================= TRUCK CRUD =================
+        [HttpGet("trucks")]
+        public async Task<ActionResult<IEnumerable<Truck>>> GetTrucks()
+        {
+            var trucks = await _context.Trucks.ToListAsync();
             return Ok(trucks);
         }
 
         [HttpGet("trucks/{id}")]
-        public async Task<ActionResult<TruckDto>> GetTruck(int id)
+        public async Task<ActionResult<Truck>> GetTruck(int id)
         {
             var truck = await _context.Trucks.FindAsync(id);
-
-            if (truck == null)
-                return NotFound();
-
-            return Ok(new TruckDto
-            {
-                TruckId = truck.TruckId,
-                LicensePlate = truck.LicensePlate,
-                CurrentLocation = truck.CurrentLocation,
-                Capacity = truck.Capacity
-            });
+            if (truck == null) return NotFound();
+            return Ok(truck);
         }
 
         [HttpPost("trucks")]
-        public async Task<ActionResult<TruckDto>> CreateTruck([FromBody] TruckCreateDto dto)
+        public async Task<IActionResult> CreateTruck([FromBody] TruckCreateDto dto)
         {
             var truck = new Truck
             {
@@ -141,21 +234,14 @@ namespace backend.Controllers
             _context.Trucks.Add(truck);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetTruck), new { id = truck.TruckId }, new TruckDto
-            {
-                TruckId = truck.TruckId,
-                LicensePlate = truck.LicensePlate,
-                CurrentLocation = truck.CurrentLocation,
-                Capacity = truck.Capacity
-            });
+            return CreatedAtAction(nameof(GetTruck), new { id = truck.TruckId }, truck);
         }
 
         [HttpPut("trucks/{id}")]
         public async Task<IActionResult> UpdateTruck(int id, [FromBody] TruckCreateDto dto)
         {
             var truck = await _context.Trucks.FindAsync(id);
-            if (truck == null)
-                return NotFound();
+            if (truck == null) return NotFound();
 
             truck.LicensePlate = dto.LicensePlate;
             truck.CurrentLocation = dto.CurrentLocation;
@@ -163,7 +249,6 @@ namespace backend.Controllers
 
             _context.Entry(truck).State = EntityState.Modified;
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
@@ -171,84 +256,10 @@ namespace backend.Controllers
         public async Task<IActionResult> DeleteTruck(int id)
         {
             var truck = await _context.Trucks.FindAsync(id);
-            if (truck == null)
-                return NotFound();
+            if (truck == null) return NotFound();
 
             _context.Trucks.Remove(truck);
             await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        // TRUCK STAFF ASSIGNMENTS
-        [HttpGet("truck-staff")]
-        public async Task<ActionResult<IEnumerable<TruckStaffAssignmentDto>>> GetTruckStaffAssignments()
-        {
-            var assignments = await _context.TruckStaffAssignments
-                .Select(a => new TruckStaffAssignmentDto
-                {
-                    AssignmentId = a.AssignmentId,
-                    TruckId = a.TruckId,
-                    StaffId = a.StaffId,
-                    Role = a.Role,
-                    DateAssigned = a.DateAssigned
-                })
-                .ToListAsync();
-
-            return Ok(assignments);
-        }
-
-        [HttpGet("truck-staff/{id}")]
-        public async Task<ActionResult<TruckStaffAssignmentDto>> GetTruckStaffAssignment(int id)
-        {
-            var assignment = await _context.TruckStaffAssignments.FindAsync(id);
-            if (assignment == null)
-                return NotFound();
-
-            return Ok(new TruckStaffAssignmentDto
-            {
-                AssignmentId = assignment.AssignmentId,
-                TruckId = assignment.TruckId,
-                StaffId = assignment.StaffId,
-                Role = assignment.Role,
-                DateAssigned = assignment.DateAssigned
-            });
-        }
-
-        [HttpPost("truck-staff")]
-        public async Task<ActionResult<TruckStaffAssignmentDto>> AssignStaffToTruck([FromBody] TruckStaffAssignmentCreateDto dto)
-        {
-            var assignment = new TruckStaffAssignment
-            {
-                TruckId = dto.TruckId,
-                StaffId = dto.StaffId,
-                Role = dto.Role,
-                DateAssigned = DateOnly.FromDateTime(DateTime.UtcNow)
-            };
-
-            _context.TruckStaffAssignments.Add(assignment);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetTruckStaffAssignment), new { id = assignment.AssignmentId }, new TruckStaffAssignmentDto
-            {
-                AssignmentId = assignment.AssignmentId,
-                TruckId = assignment.TruckId,
-                StaffId = assignment.StaffId,
-                Role = assignment.Role,
-                DateAssigned = assignment.DateAssigned
-            });
-        }
-
-        [HttpDelete("truck-staff/{id}")]
-        public async Task<IActionResult> RemoveStaffFromTruck(int id)
-        {
-            var assignment = await _context.TruckStaffAssignments.FindAsync(id);
-            if (assignment == null)
-                return NotFound();
-
-            _context.TruckStaffAssignments.Remove(assignment);
-            await _context.SaveChangesAsync();
-
             return NoContent();
         }
     }

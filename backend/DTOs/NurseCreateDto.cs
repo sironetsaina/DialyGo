@@ -5,5 +5,6 @@ namespace backend.DTOs
         public string Name { get; set; } = null!;
         public string Email { get; set; } = null!;
         public string? PhoneNumber { get; set; }
+        public int NurseId { get; internal set; }
     }
 }

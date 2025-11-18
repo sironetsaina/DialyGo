@@ -1,32 +1,146 @@
+/* General page layout */
 .home-container {
-  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #e6f4ff, #ffffff);
+  font-family: "Poppins", sans-serif;
+  color: #1e3a8a;
+}
+
+/* Header section */
+.home-header {
   text-align: center;
-  padding: 40px;
-  color: #333;
+  padding: 4rem 2rem;
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border-bottom-left-radius: 40px;
+  border-bottom-right-radius: 40px;
+  animation: fadeInDown 1.2s ease-out;
 }
 
 .home-header h1 {
-  color: #0066cc;
-  font-size: 2.5rem;
+  font-size: 2.8rem;
+  margin-bottom: 1rem;
+  letter-spacing: 1px;
 }
 
+.home-header p {
+  font-size: 1.2rem;
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* About section */
 .home-about {
-  margin: 30px auto;
-  max-width: 600px;
-  text-align: justify;
+  text-align: center;
+  padding: 3rem 2rem;
+  max-width: 900px;
+  margin: 2rem auto;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  animation: fadeIn 1.5s ease-in;
 }
 
-.home-actions .btn {
-  background-color: #0066cc;
+.home-about:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.15);
+}
+
+.home-about h2 {
+  color: #1e40af;
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
+.home-about p {
+  font-size: 1.1rem;
+  color: #374151;
+  line-height: 1.8;
+}
+
+/* Action buttons */
+.home-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+  margin-bottom: auto;
+}
+
+.btn {
+  background-color: #2563eb;
   color: white;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 6px;
+  padding: 0.9rem 2rem;
+  border-radius: 30px;
   text-decoration: none;
-  font-weight: bold;
-  transition: background 0.3s;
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
 }
 
-.home-actions .btn:hover {
-  background-color: #004999;
+.btn:hover {
+  background-color: #1e40af;
+  box-shadow: 0 6px 18px rgba(30, 64, 175, 0.3);
+  transform: translateY(-3px);
+}
+
+/* Footer */
+.home-footer {
+  text-align: center;
+  padding: 1rem;
+  background: #f1f5f9;
+  border-top: 1px solid #dbeafe;
+  margin-top: 4rem;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .home-header h1 {
+    font-size: 2.2rem;
+  }
+
+  .home-header p {
+    font-size: 1rem;
+  }
+
+  .home-about {
+    margin: 1.5rem;
+    padding: 2rem 1.5rem;
+  }
+
+  .btn {
+    padding: 0.8rem 1.8rem;
+    font-size: 1rem;
+  }
+}
+
+/* Animations */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -16,7 +16,9 @@ namespace backend.Controllers
             _context = context;
         }
 
-        // REGISTER NEW PATIENT
+        // ---------------------------------------------------------
+        // 1️⃣ REGISTER NEW PATIENT
+        // ---------------------------------------------------------
         [HttpPost("patients")]
         public async Task<ActionResult<PatientDto>> RegisterPatient([FromBody] PatientCreateDto dto)
         {
@@ -46,7 +48,9 @@ namespace backend.Controllers
             });
         }
 
-        // GET PATIENT DETAILS
+        // ---------------------------------------------------------
+        // 2️⃣ GET SINGLE PATIENT BY ID
+        // ---------------------------------------------------------
         [HttpGet("patients/{id}")]
         public async Task<ActionResult<PatientDto>> GetPatient(int id)
         {
@@ -65,7 +69,9 @@ namespace backend.Controllers
             });
         }
 
-        // UPDATE PATIENT DETAILS
+        // ---------------------------------------------------------
+        // 3️⃣ UPDATE PATIENT DETAILS (TRIAGE + BASIC INFO)
+        // ---------------------------------------------------------
         [HttpPut("patients/{id}")]
         public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientUpdateDto dto)
         {
@@ -80,13 +86,14 @@ namespace backend.Controllers
             patient.Address = dto.Address;
             patient.MedicalHistory = dto.MedicalHistory;
 
-            _context.Entry(patient).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
-        // VIEW TREATMENT SUMMARY
+        // ---------------------------------------------------------
+        // 4️⃣ GET TREATMENT SUMMARY FOR A PATIENT
+        // ---------------------------------------------------------
         [HttpGet("patients/{id}/treatment-summary")]
         public async Task<ActionResult<IEnumerable<TreatmentSummaryDto>>> GetTreatmentSummary(int id)
         {
@@ -96,21 +103,60 @@ namespace backend.Controllers
 
             if (patient == null) return NotFound();
 
-            var summary = patient.TreatmentRecords
-                .Select(tr => new TreatmentSummaryDto
-                {
-                    TreatmentId = tr.TreatmentId,
-                    // tr.TreatmentDate is a DateTime (or DateTime?), DTO expects DateTime?
-                    TreatmentDate = tr.TreatmentDate,
-                    Diagnosis = tr.Diagnosis,
-                    TreatmentDetails = tr.TreatmentDetails
-                })
-                .ToList();
+            var summary = patient.TreatmentRecords.Select(tr => new TreatmentSummaryDto
+            {
+                TreatmentId = tr.TreatmentId,
+                TreatmentDate = tr.TreatmentDate,
+                Diagnosis = tr.Diagnosis,
+                TreatmentDetails = tr.TreatmentDetails
+            }).ToList();
 
             return Ok(summary);
         }
 
-        // VIEW  HEALTH DETAILS
+        // ---------------------------------------------------------
+        // 5️⃣ GET NURSE BY ID
+        // ---------------------------------------------------------
+        [HttpGet("{id}")]
+        public async Task<ActionResult<NurseCreateDto>> GetNurseById(int id)
+        {
+            var nurse = await _context.Nurses.FindAsync(id);
+            if (nurse == null) return NotFound();
+
+            return Ok(new NurseCreateDto
+            {
+                NurseId = nurse.NurseId,
+                Name = nurse.Name,
+                Email = nurse.Email,
+                PhoneNumber = nurse.PhoneNumber
+            });
+        }
+
+        // ---------------------------------------------------------
+        // 6️⃣ GET ALL PATIENTS (No truck filtering)
+        // ---------------------------------------------------------
+        [HttpGet("patients")]
+        public async Task<ActionResult<IEnumerable<PatientDto>>> GetAllPatients()
+        {
+            var patients = await _context.Patients
+                .Select(p => new PatientDto
+                {
+                    PatientId = p.PatientId,
+                    Name = p.Name,
+                    Gender = p.Gender,
+                    DateOfBirth = p.DateOfBirth,
+                    PhoneNumber = p.PhoneNumber,
+                    Email = p.Email,
+                    Address = p.Address
+                })
+                .ToListAsync();
+
+            return Ok(patients);
+        }
+
+        // ---------------------------------------------------------
+        // 7️⃣ GET FULL HEALTH DETAILS (TREATMENTS + APPOINTMENTS)
+        // ---------------------------------------------------------
         [HttpGet("patients/{id}/health-details")]
         public async Task<ActionResult<object>> GetPatientHealthDetails(int id)
         {
@@ -138,13 +184,13 @@ namespace backend.Controllers
                 {
                     t.TreatmentId,
                     t.TreatmentDate,
-                    Diagnosis = t.Diagnosis,
-                    TreatmentDetails = t.TreatmentDetails
+                    t.Diagnosis,
+                    t.TreatmentDetails
                 }),
                 Appointments = patient.Appointments.Select(a => new
                 {
                     a.AppointmentId,
-                    AppointmentDate = a.AppointmentDate,
+                    a.AppointmentDate,
                     a.Status,
                     a.Notes
                 })

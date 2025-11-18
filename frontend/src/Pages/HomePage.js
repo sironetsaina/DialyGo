@@ -7,7 +7,7 @@ export default function HomePage() {
     <div className="home-container">
       <header className="home-header">
         <h1>Welcome to DialyGo</h1>
-        <p>Your mobile dialysis solution — bringing care closer to patients.</p>
+        <p>Your mobile dialysis solution - bringing care closer to patients.</p>
       </header>
 
       <section className="home-about">

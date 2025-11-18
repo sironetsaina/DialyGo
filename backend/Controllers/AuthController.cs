@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Models;
-using backend.DTOs;
 
 namespace backend.Controllers
 {
@@ -16,42 +15,13 @@ namespace backend.Controllers
             _context = context;
         }
 
-        // ✅ Test database connection
-        [HttpGet("test-db")]
-        public async Task<IActionResult> TestDatabase()
-        {
-            try
-            {
-                var userCount = await _context.Users.CountAsync();
-                var sampleUsers = await _context.Users
-                    .Select(u => new { u.UserId, u.Username, u.RoleId })
-                    .Take(5)
-                    .ToListAsync();
-
-                return Ok(new
-                {
-                    message = "Database connection successful ✅",
-                    totalUsers = userCount,
-                    sample = sampleUsers
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    message = "Database connection failed ❌",
-                    error = ex.Message
-                });
-            }
-        }
-
-        // ✅ POST /api/Auth/login
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDTO login)
         {
-            if (string.IsNullOrEmpty(login.Username) || string.IsNullOrEmpty(login.Password))
+            if (string.IsNullOrWhiteSpace(login.Username) || string.IsNullOrWhiteSpace(login.Password))
                 return BadRequest(new { message = "Username and password are required." });
 
+            // Find the user by Username
             var user = await _context.Users
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Username == login.Username);
@@ -59,14 +29,25 @@ namespace backend.Controllers
             if (user == null)
                 return Unauthorized(new { message = "Username not found." });
 
+            // Check password (plain text for now, replace with hash comparison if needed)
             if (user.Password != login.Password)
                 return Unauthorized(new { message = "Incorrect password." });
+
+            // If the user is a patient, get their full name
+            string? patientName = null;
+            if (user.RoleId == 4) // assuming 4 = Patient role
+            {
+                var patient = await _context.Patients.FindAsync(user.RelatedId);
+                patientName = patient?.Name;
+            }
 
             return Ok(new
             {
                 userId = user.UserId,
                 username = user.Username,
-                role = user.Role?.RoleName ?? "Unknown"
+                role = user.Role?.RoleName ?? "Unknown",
+                relatedId = user.RelatedId,
+                fullName = patientName
             });
         }
     }

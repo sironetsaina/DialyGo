@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ----------------------------------------
+// SERVICES
+// ----------------------------------------
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 
-// Add DbContext
 builder.Services.AddDbContext<MobileDialysisDbContext>(options =>
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
@@ -22,15 +24,33 @@ builder.Services.AddDbContext<MobileDialysisDbContext>(options =>
     )
 );
 
+// Register SMS service
+builder.Services.AddScoped<backend.Services.InfobipSmsService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// CORS registration
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy
+                .WithOrigins("http://localhost:3000")
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ----------------------------------------
+// MIDDLEWARE
+// ----------------------------------------
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
 }
@@ -38,20 +58,13 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthorization();
 
-builder.Services.AddCors();
+// Apply CORS
+app.UseCors("AllowFrontend");
 
-app.UseCors(builder =>
-    builder
-        .WithOrigins("http://localhost:3000") // your React app
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-);
+// ----------------------------------------
+// ROUTING
+// ----------------------------------------
+app.MapControllers();
 
-app.MapControllers(); 
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-
-app.Run();  
+// ----------------------------------------
+app.Run();

@@ -1,0 +1,153 @@
+
+.admin-dashboard {
+  display: flex;
+  height: 100vh;
+  background: #f9fafb;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.sidebar {
+  width: 230px;
+  background: #1e293b;
+  color: white;
+  padding: 20px;
+}
+
+.sidebar h2 {
+  text-align: center;
+  color: #22d3ee;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar li {
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sidebar li.active,
+.sidebar li:hover {
+  background: #22d3ee;
+  color: black;
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+header {
+  margin-bottom: 10px;
+}
+
+.alert {
+  background: #dbeafe;
+  color: #0369a1;
+  padding: 10px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+
+.add-form {
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 15px;
+}
+
+.add-form input {
+  margin: 5px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.add-form button {
+  background: #22c55e;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.data-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.data-table th,
+.data-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  text-align: left;
+}
+
+.data-table th {
+  background: #e0f2fe;
+}
+
+.edit-btn {
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  padding: 5px 8px;
+  margin-right: 5px;
+  border-radius: 5px;
+}
+
+.delete-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 5px;
+}
+
+.edit-form {
+  background: #f1f5f9;
+  padding: 15px;
+  border-radius: 10px;
+  margin-top: 15px;
+}
+
+.edit-form input {
+  display: block;
+  width: 300px;
+  margin: 5px 0;
+  padding: 8px;
+}
+
+
+.back-arrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: #007bff;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+.back-arrow:hover {
+  color: #0056b3;
+  transform: translateX(-3px);
+}
+
+.back-arrow::before {
+  content: "←";
+  font-weight: bold;
+  margin-right: 4px;
+}

@@ -14,6 +14,7 @@ namespace backend.DTOs
         public string? Status { get; set; }
         public string? Notes { get; set; }
         public string? TruckPlate { get; set; }
+        public string? TruckLocation { get; internal set; }
     }
 
     public class PatientDetailDto
@@ -26,6 +27,8 @@ namespace backend.DTOs
         public string? Email { get; set; }
         public string? Address { get; set; }
         public string? MedicalHistory { get; set; }
+        public object AppointmentID { get; internal set; }
+        public object TreatmentRecords { get; internal set; }
     }
 
     public class TruckLocationDto
@@ -33,5 +36,13 @@ namespace backend.DTOs
         public int TruckId { get; set; }
         public string LicensePlate { get; set; } = null!;
         public string? CurrentLocation { get; set; }
+
     }
+   
+   public class AppointmentUpdateDto
+{
+    public DateTime AppointmentDate { get; set; }
+    public string? Notes { get; set; }
 }
+
+    }
