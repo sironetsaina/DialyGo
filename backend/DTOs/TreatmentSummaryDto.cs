@@ -7,7 +7,6 @@ namespace backend.DTOs
 
         // Use DateTime? here to match your TreatmentRecord.TreatmentDate (which is DateTime)
         public DateTime? TreatmentDate { get; set; }
-    public string? TreatmentHistoryJson { get; set; }
 
         public string Diagnosis { get; set; } = null!;
         public string TreatmentDetails { get; set; } = null!;

@@ -199,19 +199,33 @@ namespace backend.Controllers
         public async Task<ActionResult<IEnumerable<object>>> GetPatients()
         {
             var patients = await _context.Patients
-                .Select(p => new { p.PatientId, p.Name })
+                .Select(p => new { p.PatientId, p.Name,p.PhoneNumber })
                 .ToListAsync();
 
             return Ok(patients);
         }
 
         // ================= TRUCK CRUD =================
+       
         [HttpGet("trucks")]
-        public async Task<ActionResult<IEnumerable<Truck>>> GetTrucks()
+public async Task<ActionResult<IEnumerable<object>>> GetTrucks()
+{
+    var trucks = await _context.Trucks
+        .Select(t => new
         {
-            var trucks = await _context.Trucks.ToListAsync();
-            return Ok(trucks);
-        }
+            t.TruckId,
+            t.LicensePlate,
+            t.CurrentLocation,
+            t.Capacity,
+
+            // NEW: Number of bookings from Appointment table
+            BookingsCount = _context.Appointments.Count(a => a.TruckId == t.TruckId)
+        })
+        .ToListAsync();
+
+    return Ok(trucks);
+}
+
 
         [HttpGet("trucks/{id}")]
         public async Task<ActionResult<Truck>> GetTruck(int id)
@@ -251,6 +265,74 @@ namespace backend.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+// ================= METRICS =================
+
+// GET api/Admin/patients/{id}
+// Retrieves full patient details along with their appointments
+[HttpGet("patients/{id}")]
+public async Task<ActionResult<object>> GetPatientWithAppointments(int id)
+{
+    var patient = await _context.Patients
+        .Where(p => p.PatientId == id)
+        .Select(p => new 
+        {
+            p.PatientId,
+            p.Name,
+            p.Gender,
+            p.DateOfBirth,
+            p.PhoneNumber,
+            p.Email,
+            p.Address,
+            p.MedicalHistory,
+            // Include all appointments for this patient
+            Appointments = _context.Appointments
+                .Where(a => a.PatientId == p.PatientId)
+                .Select(a => new 
+                {
+                    a.AppointmentId,
+                    a.TruckId,
+                    a.AppointmentDate,
+                    a.Status,
+                    
+                }).ToList()
+        })
+        .FirstOrDefaultAsync();
+
+    if (patient == null) return NotFound();
+    return Ok(patient);
+}
+[HttpGet("metrics")]
+public async Task<IActionResult> GetMetrics()
+{
+    try
+    {
+        var totalDoctors = await _context.Doctors.CountAsync();
+        var totalNurses = await _context.Nurses.CountAsync();
+        var totalPatients = await _context.Patients.CountAsync();
+        var totalUsers = await _context.Users.CountAsync();
+        var totalTrucks = await _context.Trucks.CountAsync();
+
+        // Calculate available trucks dynamically
+        var today = DateTime.Today;
+        var availableTrucks = await _context.Trucks
+            .CountAsync(t => !_context.Appointments
+                .Any(a => a.TruckId == t.TruckId && a.AppointmentDate >= today && a.Status != "Cancelled"));
+
+        return Ok(new
+        {
+            totalDoctors,
+            totalNurses,
+            totalPatients,
+            totalUsers,
+            totalTrucks,
+            availableTrucks
+        });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, "Error retrieving metrics: " + ex.Message);
+    }
+}
 
         [HttpDelete("trucks/{id}")]
         public async Task<IActionResult> DeleteTruck(int id)

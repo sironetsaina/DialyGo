@@ -13,9 +13,11 @@ function PatientDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [notifications, setNotifications] = useState([]);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const API_PATIENT = "http://localhost:5178/api/Patient";
 
+  // -------------------- Helpers --------------------
   const showMsg = (msg) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 4000);
@@ -28,7 +30,18 @@ function PatientDashboard() {
     }
   };
 
-  // Load trucks
+  // -------------------- Fetch Notifications --------------------
+  const loadNotifications = async (pid) => {
+    try {
+      const res = await fetch(`${API_PATIENT}/notifications/${pid}`);
+      const data = await res.json();
+      setNotifications(data.map((n) => n.message));
+    } catch {
+      console.log("Failed to load notifications");
+    }
+  };
+
+  // -------------------- Load Trucks --------------------
   const loadAvailableTrucks = async () => {
     try {
       const res = await fetch(`${API_PATIENT}/trucks`);
@@ -39,7 +52,7 @@ function PatientDashboard() {
     }
   };
 
-  // Load patient
+  // -------------------- Fetch Patient --------------------
   const handleFetchPatient = async () => {
     if (!patientId.trim()) {
       showMsg("Please enter your Patient ID.");
@@ -48,9 +61,14 @@ function PatientDashboard() {
     try {
       const res = await fetch(`${API_PATIENT}/${patientId}`);
       if (!res.ok) throw new Error();
+
       const data = await res.json();
       setPatient(data);
-      loadAppointments(patientId);
+      setAppointments(data.appointmentID || []);
+
+      // Load notifications separately
+      loadNotifications(patientId);
+
       loadAvailableTrucks();
       showMsg("Patient data loaded successfully!");
     } catch {
@@ -58,18 +76,7 @@ function PatientDashboard() {
     }
   };
 
-  // Load patient appointments
-  const loadAppointments = async (id) => {
-    try {
-      const res = await fetch(`${API_PATIENT}/appointments/${id}`);
-      const data = await res.json();
-      setAppointments(data);
-    } catch {
-      showMsg("Could not load appointments.");
-    }
-  };
-
-  // Load available slots when truck + date selected
+  // -------------------- Load Available Slots --------------------
   useEffect(() => {
     const fetchSlots = async () => {
       if (!selectedTruck || !appointmentDate) return;
@@ -88,17 +95,15 @@ function PatientDashboard() {
     fetchSlots();
   }, [selectedTruck, appointmentDate]);
 
-  // Book appointment
+  // -------------------- Book Appointment --------------------
   const handleBookAppointment = async () => {
     if (!selectedTruck || !appointmentDate || !selectedSlot) {
       showMsg("Please select a truck, date, and time slot.");
       return;
     }
 
-    // Combine date + time slot into ISO string
     const [slotStart] = selectedSlot.split("-");
-    const [hours, minutes] = slotStart.split(":");
-    const isoDate = `${appointmentDate}T${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00`;
+    const isoDate = new Date(`${appointmentDate}T${slotStart}:00`).toISOString();
 
     const payload = {
       patientId: parseInt(patientId),
@@ -107,38 +112,31 @@ function PatientDashboard() {
     };
 
     try {
+      setLoading(true);
       const res = await fetch(`${API_PATIENT}/appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(errText || "Booking failed");
       }
 
-      showMsg("Appointment booked successfully!");
+      const data = await res.json();
+      showMsg(`✅ ${data.message}`);
 
-      // Add notification
-      setNotifications((prev) => [
-        ...prev,
-        `Reminder: Your booking is confirmed on ${new Date(isoDate).toLocaleString()}`,
-      ]);
-
-      // Reset selection
-      setSelectedTruck("");
-      setAppointmentDate("");
-      setAvailableSlots([]);
-      setSelectedSlot("");
-
-      loadAppointments(patientId);
+      await loadNotifications(patientId);
+      await handleFetchPatient();
     } catch (error) {
-      console.error(error);
-      showMsg(`Failed to book appointment: ${error.message}`);
+      showMsg(`❌ Failed to book appointment: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Cancel appointment
+  // -------------------- Cancel Appointment --------------------
   const handleCancelAppointment = async (id) => {
     if (!window.confirm("Cancel this appointment?")) return;
     try {
@@ -146,14 +144,12 @@ function PatientDashboard() {
         method: "POST",
       });
       if (!res.ok) throw new Error();
-      showMsg("Appointment cancelled successfully!");
-      loadAppointments(patientId);
+      const data = await res.json();
 
-      // Add cancellation notification
-      setNotifications((prev) => [
-        ...prev,
-        `Notice: Your appointment has been cancelled.`,
-      ]);
+      showMsg(`✅ ${data.message}`);
+
+      await loadNotifications(patientId);
+      await handleFetchPatient();
     } catch {
       showMsg("Failed to cancel appointment.");
     }
@@ -164,6 +160,9 @@ function PatientDashboard() {
     return truck ? `${truck.licensePlate} — ${truck.currentLocation}` : truckId;
   };
 
+  // -------------------------------------------------------------
+  // JSX
+  // -------------------------------------------------------------
   return (
     <div className="patient-dashboard">
       <aside className="sidebar">
@@ -218,28 +217,18 @@ function PatientDashboard() {
             {activeTab === "overview" && (
               <div className="overview">
                 <h2>Dashboard Overview</h2>
-                <p>Select a section from the sidebar to manage your account.</p>
+                <p>Manage your appointments, profile, and notifications here.</p>
               </div>
             )}
 
             {activeTab === "profile" && (
               <div className="profile">
                 <h2>My Profile</h2>
-                <p>
-                  <strong>Name:</strong> {patient.name}
-                </p>
-                <p>
-                  <strong>Email:</strong> {patient.email}
-                </p>
-                <p>
-                  <strong>Phone:</strong> {patient.phoneNumber}
-                </p>
-                <p>
-                  <strong>Address:</strong> {patient.address}
-                </p>
-                <p>
-                  <strong>Medical History:</strong> {patient.medicalHistory}
-                </p>
+                <p><strong>Name:</strong> {patient.name}</p>
+                <p><strong>Email:</strong> {patient.email}</p>
+                <p><strong>Phone:</strong> {patient.phoneNumber}</p>
+                <p><strong>Address:</strong> {patient.address}</p>
+                <p><strong>Medical History:</strong> {patient.medicalHistory}</p>
 
                 <h3>Treatment Records</h3>
                 {patient.treatmentRecords?.length ? (
@@ -254,9 +243,7 @@ function PatientDashboard() {
                     <tbody>
                       {patient.treatmentRecords.map((t) => (
                         <tr key={t.treatmentId}>
-                          <td>
-                            {new Date(t.treatmentDate).toLocaleDateString()}
-                          </td>
+                          <td>{new Date(t.treatmentDate).toLocaleDateString()}</td>
                           <td>{t.diagnosis}</td>
                           <td>{t.treatmentDetails}</td>
                         </tr>
@@ -272,6 +259,7 @@ function PatientDashboard() {
             {activeTab === "book" && (
               <div className="book-appointment">
                 <h2>Book Appointment</h2>
+
                 <select
                   value={selectedTruck}
                   onChange={(e) => setSelectedTruck(e.target.value)}
@@ -304,13 +292,21 @@ function PatientDashboard() {
                   </select>
                 )}
 
-                <button onClick={handleBookAppointment}>Confirm Booking</button>
+                <button
+                  onClick={handleBookAppointment}
+                  disabled={
+                    !selectedTruck || !appointmentDate || !selectedSlot || loading
+                  }
+                >
+                  {loading ? "Booking..." : "Confirm Booking"}
+                </button>
               </div>
             )}
 
             {activeTab === "appointments" && (
               <div className="appointments">
                 <h2>My Appointments</h2>
+
                 {appointments.length > 0 ? (
                   <table>
                     <thead>
@@ -325,19 +321,17 @@ function PatientDashboard() {
                       {appointments.map((appt) => (
                         <tr key={appt.appointmentId}>
                           <td>{getTruckInfo(appt.truckId)}</td>
-                          <td>
-                            {new Date(appt.appointmentDate).toLocaleString()}
-                          </td>
+                          <td>{new Date(appt.appointmentDate).toLocaleString()}</td>
                           <td>{appt.status}</td>
                           <td>
-                            <button
-                              className="delete-btn"
-                              onClick={() =>
-                                handleCancelAppointment(appt.appointmentId)
-                              }
-                            >
-                              🗑️ Cancel
-                            </button>
+                            {appt.status !== "Cancelled" && (
+                              <button
+                                className="delete-btn"
+                                onClick={() => handleCancelAppointment(appt.appointmentId)}
+                              >
+                                🗑️ Cancel
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -353,7 +347,7 @@ function PatientDashboard() {
               <div className="notifications">
                 <h2>Notifications</h2>
                 {notifications.length > 0 ? (
-                  <ul>
+                  <ul className="notifications-list">
                     {notifications.map((n, idx) => (
                       <li key={idx}>{n}</li>
                     ))}
@@ -371,3 +365,4 @@ function PatientDashboard() {
 }
 
 export default PatientDashboard;
+

@@ -1,293 +1,231 @@
 /* NurseDashboard.css */
 
-/* --- General Styles --- */
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-  background: #f7f9fc;
-  color: #333;
+/* -------------------- Global -------------------- */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.alert {
-  background-color: #fff3cd;
-  border-left: 6px solid #ffe066;
-  padding: 10px 15px;
-  margin: 10px 0;
-  border-radius: 5px;
-}
-
-/* --- Dashboard Layout --- */
 .nurse-dashboard {
-  display: flex;
-  min-height: 100vh;
+    display: flex;
+    height: 100vh;
 }
 
+/* -------------------- Sidebar -------------------- */
 .sidebar {
-  width: 220px;
-  background-color: #1f3c88;
-  color: #fff;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
+    width: 220px;
+    background-color: #1e2a38;
+    color: #fff;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .sidebar h2 {
-  margin-top: 0;
-  font-size: 20px;
-  margin-bottom: 20px;
-  text-align: center;
+    margin-bottom: 30px;
+    font-size: 22px;
+    text-align: center;
 }
 
 .sidebar ul {
-  list-style: none;
-  padding: 0;
+    list-style: none;
+    padding: 0;
 }
 
 .sidebar li {
-  padding: 10px 15px;
-  cursor: pointer;
-  border-radius: 5px;
-  margin-bottom: 5px;
+    padding: 12px 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.2s;
 }
 
-.sidebar li.active,
-.sidebar li:hover {
-  background-color: #3654a2;
+.sidebar li:hover, .sidebar li.active {
+    background-color: #2e3b4e;
 }
 
 .logout-btn {
-  margin-top: auto;
-  background-color: #ff4d4d;
-  text-align: center;
-  font-weight: bold;
+    margin-top: auto;
+    background-color: #d9534f;
+    text-align: center;
 }
 
-.logout-btn:hover {
-  background-color: #e60000;
-}
-
-/* --- Main Content --- */
+/* -------------------- Main Content -------------------- */
 .main-content {
-  flex: 1;
-  padding: 20px 40px;
+    flex: 1;
+    padding: 20px;
+    background-color: #f6f8fa;
+    overflow-y: auto;
 }
 
-.main-content header h1 {
-  margin: 0;
+header h1 {
+    margin-top: 0;
 }
 
-/* --- Overview Cards --- */
+/* -------------------- Alerts -------------------- */
+.alert {
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+}
+
+.alert.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* -------------------- Overview Cards -------------------- */
 .cards {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
+    display: flex;
+    gap: 20px;
 }
 
 .card {
-  background-color: #fff;
-  padding: 20px;
-  flex: 1;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  font-weight: bold;
-  text-align: center;
+    background-color: #fff;
+    padding: 20px;
+    flex: 1;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    text-align: center;
+    font-size: 18px;
 }
 
-/* --- Patient Management --- */
-.patients-section h2 {
-  margin-bottom: 15px;
-}
-
-.patient-actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.patient-actions button {
-  padding: 10px 15px;
-  background-color: #1f3c88;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.patient-actions button:hover {
-  background-color: #3654a2;
-}
-
-/* --- Tables --- */
+/* -------------------- Table -------------------- */
 .data-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 15px;
-  background-color: #fff;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background-color: #fff;
+    border-radius: 10px;
+    overflow: hidden;
 }
 
-.data-table th,
-.data-table td {
-  padding: 12px 15px;
-  text-align: left;
+.data-table th, .data-table td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
 }
 
 .data-table th {
-  background-color: #1f3c88;
-  color: #fff;
+    background-color: #1e2a38;
+    color: #fff;
 }
 
-.data-table tr:nth-child(even) {
-  background-color: #f2f2f2;
+.data-table tr:hover {
+    background-color: #f1f1f1;
 }
 
-.data-table button {
-  margin-right: 5px;
-  padding: 5px 10px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.data-table button.update-btn {
-  background-color: #00b894;
-  color: #fff;
-}
-
-.data-table button.delete-btn {
-  background-color: #e74c3c;
-  color: #fff;
-}
-
-.data-table button:hover {
-  opacity: 0.85;
-}
-
-/* --- Modal --- */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
+/* -------------------- Patient Modal -------------------- */
+.modal.front {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
 }
 
 .modal-content {
-  background-color: #fff;
-  padding: 25px 30px;
-  border-radius: 10px;
-  width: 500px;
-  max-width: 90%;
-  position: relative;
+    background-color: #fff;
+    width: 80%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
 }
 
-.modal h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  text-align: center;
+.modal-content header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 15px;
+.close-btn {
+    background: #d9534f;
+    border: none;
+    color: #fff;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 6px;
 }
 
-.modal-actions button {
-  padding: 8px 12px;
-  font-weight: bold;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
+/* -------------------- Patient Tabs -------------------- */
+.patient-tabs {
+    display: flex;
+    margin-top: 20px;
+    gap: 10px;
 }
 
-.modal-actions button:hover {
-  opacity: 0.85;
+.patient-tabs button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #e0e0e0;
+    transition: background-color 0.2s;
 }
 
-/* --- Forms --- */
-.patient-form input,
-.patient-form select,
-.patient-form textarea {
-  width: 100%;
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
+.patient-tabs button.active {
+    background-color: #1e2a38;
+    color: #fff;
 }
 
-.patient-form button[type="submit"] {
-  background-color: #1f3c88;
-  color: #fff;
-  font-weight: bold;
-  width: 100%;
-  padding: 10px;
-  border-radius: 5px;
-  cursor: pointer;
+/* -------------------- Tab Content -------------------- */
+.tab-content {
+    margin-top: 20px;
 }
 
-.patient-form button[type="submit"]:hover {
-  background-color: #3654a2;
+/* -------------------- Appointments Complete Section -------------------- */
+.complete-section {
+    display: flex;
+    gap: 5px;
+    align-items: center;
 }
 
-/* --- Summary Section --- */
-.summary {
-  background-color: #fff;
-  padding: 20px;
-  margin-top: 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+.complete-section input {
+    flex: 1;
+    padding: 5px;
 }
 
-.summary h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
+.complete-section button {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
 }
 
-/* --- Confirm Nurse ID --- */
-.confirm-nurse-id {
-  max-width: 400px;
-  margin: 100px auto;
-  background-color: #fff;
-  padding: 25px;
-  border-radius: 10px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.2);
+/* -------------------- Edit Details -------------------- */
+.tab-content input, 
+.tab-content select, 
+.tab-content textarea {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 7px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
 }
 
-.confirm-nurse-id form {
-  display: flex;
-  flex-direction: column;
-}
-
-.confirm-nurse-id input {
-  padding: 10px;
-  margin-bottom: 15px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-}
-
-.confirm-nurse-id button {
-  padding: 10px;
-  background-color: #1f3c88;
-  color: #fff;
-  font-weight: bold;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.confirm-nurse-id button:hover {
-  background-color: #3654a2;
+.tab-content button {
+    background-color: #1e2a38;
+    color: #fff;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 6px;
 }

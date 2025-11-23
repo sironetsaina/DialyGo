@@ -1,4 +1,5 @@
 using backend.Models;
+using backend.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,9 +24,11 @@ builder.Services.AddDbContext<MobileDialysisDbContext>(options =>
         }
     )
 );
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<SmsService>();
 
 // Register SMS service
-builder.Services.AddScoped<backend.Services.InfobipSmsService>();
+//builder.Services.AddScoped<backend.Services.InfobipSmsService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

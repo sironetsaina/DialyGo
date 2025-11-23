@@ -1,21 +1,30 @@
+/* --- General Layout --- */
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  color: #333;
+}
+
 .doctor-dashboard {
   display: flex;
   height: 100vh;
-  font-family: "Segoe UI", sans-serif;
 }
 
+/* --- Sidebar --- */
 .sidebar {
-  width: 240px;
-  background-color: #1a237e;
-  color: #fff;
+  width: 220px;
+  background-color: #1f2937;
+  color: white;
   padding: 20px;
   display: flex;
   flex-direction: column;
 }
 
 .sidebar h2 {
+  font-size: 20px;
   margin-bottom: 20px;
-  text-align: center;
 }
 
 .sidebar ul {
@@ -24,106 +33,191 @@
 }
 
 .sidebar li {
-  padding: 12px;
-  margin: 6px 0;
+  padding: 12px 10px;
+  margin-bottom: 8px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: 0.3s;
+  border-radius: 5px;
 }
 
-.sidebar li:hover,
-.sidebar li.active {
-  background-color: #3949ab;
+.sidebar li.active, .sidebar li:hover {
+  background-color: #4b5563;
 }
 
+/* --- Main Content --- */
 .main-content {
   flex: 1;
-  background: #f5f7fa;
-  padding: 30px;
+  padding: 20px;
   overflow-y: auto;
 }
 
-.header {
-  margin-bottom: 20px;
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.header p {
+  margin: 4px 0 20px 0;
+  color: #555;
 }
 
 .alert {
-  background: #e8f5e9;
   padding: 10px;
-  border-radius: 5px;
+  background-color: #fef3c7;
+  border: 1px solid #fde68a;
   margin-bottom: 15px;
-  color: #2e7d32;
-}
-
-.confirm-doctor {
-  text-align: center;
-  margin-top: 100px;
-}
-
-.confirm-doctor input {
-  padding: 10px;
-  width: 200px;
-  margin: 10px;
-}
-
-.confirm-doctor button {
-  padding: 10px 20px;
-  background: #3949ab;
-  color: #fff;
-  border: none;
   border-radius: 5px;
 }
 
-.overview {
-  display: flex;
-  gap: 20px;
-}
-
+/* --- Cards --- */
 .card {
-  background: #fff;
-  padding: 20px;
+  background-color: white;
+  padding: 15px;
+  margin-bottom: 20px;
   border-radius: 8px;
-  flex: 1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
+/* --- Search Box --- */
 .search-box {
   display: flex;
   gap: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
-input, textarea {
+.search-box input {
+  flex: 1;
   padding: 8px;
   border-radius: 5px;
   border: 1px solid #ccc;
 }
 
-button {
-  background: #3949ab;
-  color: #fff;
-  border: none;
+.search-box button {
   padding: 8px 15px;
+  border-radius: 5px;
+  border: none;
+  background-color: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.search-box button:hover {
+  background-color: #1d4ed8;
+}
+
+/* --- Patient Details --- */
+.patient-details input {
+  padding: 6px;
+  margin-left: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.patient-details button {
+  margin-left: 10px;
+  padding: 6px 12px;
+  border: none;
+  background-color: #10b981;
+  color: white;
   border-radius: 5px;
   cursor: pointer;
 }
 
-button:hover {
-  background: #303f9f;
+.patient-details button:hover {
+  background-color: #059669;
 }
 
+/* --- Treatment Table --- */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 10px;
+  margin-top: 15px;
 }
 
-table th,
-table td {
-  border: 1px solid #ccc;
+table th, table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+table th {
+  background-color: #f3f4f6;
+}
+
+table tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+table tr:hover {
+  background-color: #e5e7eb;
+}
+
+/* --- Treatment Edit / Add Form --- */
+.add-treatment input, 
+.add-treatment textarea,
+textarea {
+  width: 100%;
   padding: 8px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  resize: vertical;
 }
 
-.add-treatment {
-  margin-top: 20px;
+.add-treatment button {
+  padding: 8px 15px;
+  border-radius: 5px;
+  border: none;
+  background-color: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.add-treatment button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.add-treatment button:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+/* --- Action Buttons in Table --- */
+table button {
+  padding: 5px 10px;
+  margin-right: 5px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+table button:hover {
+  opacity: 0.8;
+}
+
+table button:nth-child(1) {
+  background-color: #10b981;
+  color: white;
+}
+
+table button:nth-child(2) {
+  background-color: #ef4444;
+  color: white;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .doctor-dashboard {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .sidebar ul {
+    display: flex;
+    gap: 10px;
+  }
 }

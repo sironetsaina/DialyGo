@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
+using backend.Models;
+using backend.Services;
 
 namespace backend.Controllers
 {
@@ -10,22 +8,13 @@ namespace backend.Controllers
     [ApiController]
     public class SmsController : ControllerBase
     {
-        private readonly HttpClient _httpClient;
-        private readonly IConfiguration _config;
+        private readonly MobileDialysisDbContext _context;
+        private readonly SmsService _smsService;
 
-        public SmsController(IHttpClientFactory httpClientFactory, IConfiguration config)
+        public SmsController(MobileDialysisDbContext context, SmsService smsService)
         {
-            _httpClient = httpClientFactory.CreateClient();
-            _config = config;
-
-            // Set base address from config
-            _httpClient.BaseAddress = new Uri(_config["Infobip:BaseUrl"]);
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"App {_config["Infobip:ApiKey"]}");
-        }
-
-        public SmsController(HttpClient client, IConfiguration config)
-        {
-            _config = config;
+            _context = context;
+            _smsService = smsService;
         }
 
         [HttpPost("send")]
@@ -34,34 +23,34 @@ namespace backend.Controllers
             if (string.IsNullOrWhiteSpace(request.PhoneNumber) || string.IsNullOrWhiteSpace(request.Message))
                 return BadRequest("Phone number and message are required.");
 
-            var payload = new
+            var success = await _smsService.SendSms(request.PhoneNumber, request.Message);
+
+            if (!success) return StatusCode(500, "SMS sending failed.");
+
+            // Save to DB
+            var notification = new Smsnotification
             {
-                messages = new[]
-                {
-                    new
-                    {
-                        from = "DialyGo",
-                        destinations = new[] { new { to = request.PhoneNumber } },
-                        text = request.Message
-                    }
-                }
+                PatientId = request.PatientId,
+                Message = request.Message,
+                SentAt = DateTime.UtcNow,
+                SentBy = request.SentBy ?? "System",
+                SenderId = request.SenderId,
+                SenderRole = request.SenderRole
             };
+            _context.Smsnotifications.Add(notification);
+            await _context.SaveChangesAsync();
 
-            var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync("", content);
-            var result = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-                return StatusCode((int)response.StatusCode, new { success = false, error = result });
-
-            return Ok(new { success = true, message = "SMS sent successfully!", response = result });
+            return Ok(new { success = true, message = "SMS sent and saved successfully." });
         }
 
         public class SmsRequest
         {
             public string PhoneNumber { get; set; } = string.Empty;
             public string Message { get; set; } = string.Empty;
+            public int PatientId { get; set; }
+            public string? SentBy { get; set; }
+            public int? SenderId { get; set; }
+            public string? SenderRole { get; set; }
         }
     }
 }

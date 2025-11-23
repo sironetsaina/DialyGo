@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import "./DoctorDashboard.css";
 
 function DoctorDashboard() {
@@ -8,26 +8,24 @@ function DoctorDashboard() {
   const [patientId, setPatientId] = useState("");
   const [patient, setPatient] = useState(null);
   const [treatments, setTreatments] = useState([]);
-  const [truck, setTruck] = useState(null);
   const [patientsToday, setPatientsToday] = useState([]);
   const [newTreatment, setNewTreatment] = useState({ Diagnosis: "", TreatmentDetails: "" });
   const [message, setMessage] = useState("");
+  const [editingTreatmentId, setEditingTreatmentId] = useState(null);
+  const [editingTreatment, setEditingTreatment] = useState({ Diagnosis: "", TreatmentDetails: "" });
 
   const API_BASE = "http://localhost:5178/api";
 
   const confirmDoctor = async () => {
     try {
-      const res = await fetch(`${API_BASE}/Admin/doctors/${doctorId}`);
+      const res = await fetch(`${API_BASE}/Doctor/${doctorId}`);
       if (!res.ok) throw new Error("Doctor not found");
       const data = await res.json();
       setConfirmedDoctor(data);
-
-      // Fetch truck & patients seen today
-      fetchAssignedTruck();
       fetchPatientsToday();
       setMessage("");
     } catch {
-      setMessage(" Doctor ID not found. Please try again.");
+      setMessage("Doctor ID not found. Please try again.");
     }
   };
 
@@ -36,7 +34,6 @@ function DoctorDashboard() {
       setMessage("⚠️ Please enter a Patient ID");
       return;
     }
-
     try {
       const res = await fetch(`${API_BASE}/Doctor/patients/${patientId}`);
       if (!res.ok) throw new Error();
@@ -45,7 +42,7 @@ function DoctorDashboard() {
       fetchTreatments(patientId);
       setMessage("");
     } catch {
-      setMessage(" Patient not found.");
+      setMessage("Patient not found.");
     }
   };
 
@@ -55,18 +52,48 @@ function DoctorDashboard() {
   };
 
   const addTreatment = async () => {
+    if (!newTreatment.Diagnosis || !newTreatment.TreatmentDetails) {
+      setMessage("Please fill in both Diagnosis and Treatment Details.");
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/Doctor/patients/${patientId}/treatment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTreatment),
+        body: JSON.stringify({
+          diagnosis: newTreatment.Diagnosis,
+          treatmentDetails: newTreatment.TreatmentDetails,
+        }),
       });
       if (!res.ok) throw new Error();
       setMessage("Treatment added successfully!");
-      fetchTreatments(patientId);
       setNewTreatment({ Diagnosis: "", TreatmentDetails: "" });
+      fetchTreatments(patientId);
     } catch {
       setMessage("Failed to add treatment.");
+    }
+  };
+
+  const updateTreatment = async (treatmentId) => {
+    if (!editingTreatment.Diagnosis || !editingTreatment.TreatmentDetails) {
+      setMessage("Please fill in both Diagnosis and Treatment Details.");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/Doctor/treatment/${treatmentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          diagnosis: editingTreatment.Diagnosis,
+          treatmentDetails: editingTreatment.TreatmentDetails,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setMessage("Treatment updated successfully!");
+      setEditingTreatmentId(null);
+      fetchTreatments(patientId);
+    } catch {
+      setMessage("Failed to update treatment.");
     }
   };
 
@@ -78,15 +105,10 @@ function DoctorDashboard() {
         body: JSON.stringify(patient.medicalHistory),
       });
       if (!res.ok) throw new Error();
-      setMessage(" Diagnosis updated successfully!");
+      setMessage("Diagnosis updated successfully!");
     } catch {
       setMessage("Failed to update diagnosis.");
     }
-  };
-
-  const fetchAssignedTruck = async () => {
-    const res = await fetch(`${API_BASE}/Doctor/assigned-truck/${doctorId}`);
-    if (res.ok) setTruck(await res.json());
   };
 
   const fetchPatientsToday = async () => {
@@ -94,15 +116,32 @@ function DoctorDashboard() {
     if (res.ok) setPatientsToday(await res.json());
   };
 
+  const backToSearch = () => {
+    setPatient(null);
+    setPatientId("");
+    setTreatments([]);
+    setMessage("");
+  };
+
+  const logout = () => {
+    setConfirmedDoctor(null);
+    setActiveTab("overview");
+    setPatient(null);
+    setPatientId("");
+    setTreatments([]);
+    setPatientsToday([]);
+    setMessage("");
+  };
+
   return (
     <div className="doctor-dashboard">
       <aside className="sidebar">
         <h2>DialyGo Doctor</h2>
         <ul>
-          <li className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}> Overview</li>
+          <li className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}>Overview</li>
           <li className={activeTab === "patients" ? "active" : ""} onClick={() => setActiveTab("patients")}>Patient Records</li>
-          <li className={activeTab === "truck" ? "active" : ""} onClick={() => setActiveTab("truck")}> Assigned Truck</li>
-          <li className={activeTab === "seen" ? "active" : ""} onClick={() => setActiveTab("seen")}> Patients Seen Today</li>
+          <li className={activeTab === "seen" ? "active" : ""} onClick={() => setActiveTab("seen")}>Patients Seen Today</li>
+          {confirmedDoctor && <li onClick={logout}>Logout</li>}
         </ul>
       </aside>
 
@@ -122,8 +161,9 @@ function DoctorDashboard() {
         ) : (
           <>
             <header className="header">
-              <h1>Welcome, Dr. {confirmedDoctor.name} </h1>
+              <h1>Welcome, Dr. {confirmedDoctor.name}</h1>
               <p>Specialization: {confirmedDoctor.specialization}</p>
+              <p>Email: {confirmedDoctor.email} | Phone: {confirmedDoctor.phoneNumber}</p>
             </header>
 
             {message && <div className="alert">{message}</div>}
@@ -132,17 +172,14 @@ function DoctorDashboard() {
             {activeTab === "overview" && (
               <section className="overview">
                 <div className="card">
-                  <h3>Assigned Truck</h3>
-                  {truck ? (
-                    <p>
-                      {truck.licensePlate} — {truck.currentLocation}
-                    </p>
-                  ) : (
-                    <p>No truck assigned yet.</p>
-                  )}
+                  <h3>Doctor Profile</h3>
+                  <p><b>Name:</b> {confirmedDoctor.name}</p>
+                  <p><b>Specialization:</b> {confirmedDoctor.specialization}</p>
+                  <p><b>Email:</b> {confirmedDoctor.email}</p>
+                  <p><b>Phone:</b> {confirmedDoctor.phoneNumber}</p>
                 </div>
                 <div className="card">
-                  <h3> Patients Seen Today</h3>
+                  <h3>Patients Seen Today</h3>
                   <p>{patientsToday.length}</p>
                 </div>
               </section>
@@ -151,103 +188,146 @@ function DoctorDashboard() {
             {/* Patients */}
             {activeTab === "patients" && (
               <section className="patients-section">
-                <h2>Search Patient</h2>
-                <div className="search-box">
-                  <input
-                    type="number"
-                    placeholder="Enter Patient ID"
-                    value={patientId}
-                    onChange={(e) => setPatientId(e.target.value)}
-                  />
-                  <button onClick={fetchPatient}>Search</button>
-                </div>
-
-                {patient && (
-                  <div className="patient-details">
-                    <h3>{patient.name}</h3>
-                    <p><b>Gender:</b> {patient.gender}</p>
-                    <p><b>Email:</b> {patient.email}</p>
-                    <p><b>Diagnosis:</b>
+                {!patient ? (
+                  <>
+                    <h2>Search Patient</h2>
+                    <div className="search-box">
                       <input
-                        type="text"
-                        value={patient.medicalHistory || ""}
-                        onChange={(e) =>
-                          setPatient({ ...patient, medicalHistory: e.target.value })
-                        }
+                        type="number"
+                        placeholder="Enter Patient ID"
+                        value={patientId}
+                        onChange={(e) => setPatientId(e.target.value)}
                       />
-                      <button onClick={updateDiagnosis}>Update Diagnosis</button>
-                    </p>
-                  </div>
-                )}
-
-                {treatments.length > 0 && (
-                  <div className="treatments">
-                    <h3>Treatment History</h3>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Diagnosis</th>
-                          <th>Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {treatments.map((t) => (
-                          <tr key={t.treatmentId}>
-                            <td>{new Date(t.treatmentDate).toLocaleString()}</td>
-                            <td>{t.diagnosis}</td>
-                            <td>{t.treatmentDetails}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                <div className="add-treatment">
-                  <h3>Add Treatment</h3>
-                  <input
-                    type="text"
-                    placeholder="Diagnosis"
-                    value={newTreatment.Diagnosis}
-                    onChange={(e) =>
-                      setNewTreatment({ ...newTreatment, Diagnosis: e.target.value })
-                    }
-                  />
-                  <textarea
-                    placeholder="Treatment Details"
-                    value={newTreatment.TreatmentDetails}
-                    onChange={(e) =>
-                      setNewTreatment({
-                        ...newTreatment,
-                        TreatmentDetails: e.target.value,
-                      })
-                    }
-                  />
-                  <button onClick={addTreatment}>Add Treatment</button>
-                </div>
-              </section>
-            )}
-
-            {/* Assigned Truck */}
-            {activeTab === "truck" && (
-              <section>
-                <h2> Assigned Truck</h2>
-                {truck ? (
-                  <div className="card">
-                    <p><b>Plate:</b> {truck.licensePlate}</p>
-                    <p><b>Location:</b> {truck.currentLocation}</p>
-                    <p><b>Capacity:</b> {truck.capacity}</p>
-                  </div>
+                      <button onClick={fetchPatient}>Search</button>
+                    </div>
+                  </>
                 ) : (
-                  <p>No truck assigned yet.</p>
+                  <>
+                    <button className="back-button" onClick={backToSearch}>← Back to Search</button>
+
+                    <div className="patient-details card">
+                      <h3>Patient Details</h3>
+                      <form className="patient-form">
+                        <label><b>Name:</b> {patient.name}</label>
+                        <label><b>Gender:</b> {patient.gender}</label>
+                        <label><b>Date of Birth:</b> {new Date(patient.dateOfBirth).toLocaleDateString()}</label>
+                        <label><b>Phone:</b> {patient.phoneNumber}</label>
+                        <label><b>Email:</b> {patient.email}</label>
+                        <label><b>Address:</b> {patient.address}</label>
+                        <label>
+                          <b>Diagnosis:</b>
+                          <input
+                            type="text"
+                            value={patient.medicalHistory || ""}
+                            onChange={(e) => setPatient({ ...patient, medicalHistory: e.target.value })}
+                          />
+                        </label>
+                        <button type="button" onClick={updateDiagnosis}>Update Diagnosis</button>
+                      </form>
+                    </div>
+
+                    {treatments.length > 0 && (
+                      <div className="treatments card">
+                        <h3>Treatment History</h3>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Diagnosis</th>
+                              <th>Details</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {treatments.map((t) => (
+                              <tr key={t.treatmentId}>
+                                <td>{new Date(t.treatmentDate).toLocaleString()}</td>
+                                <td>
+                                  {editingTreatmentId === t.treatmentId ? (
+                                    <input
+                                      type="text"
+                                      value={editingTreatment.Diagnosis}
+                                      onChange={(e) =>
+                                        setEditingTreatment({ ...editingTreatment, Diagnosis: e.target.value })
+                                      }
+                                    />
+                                  ) : (
+                                    t.diagnosis
+                                  )}
+                                </td>
+                                <td>
+                                  {editingTreatmentId === t.treatmentId ? (
+                                    <textarea
+                                      value={editingTreatment.TreatmentDetails}
+                                      onChange={(e) =>
+                                        setEditingTreatment({ ...editingTreatment, TreatmentDetails: e.target.value })
+                                      }
+                                    />
+                                  ) : (
+                                    t.treatmentDetails
+                                  )}
+                                </td>
+                                <td>
+                                  {editingTreatmentId === t.treatmentId ? (
+                                    <>
+                                      <button onClick={() => updateTreatment(t.treatmentId)}>Save</button>
+                                      <button onClick={() => setEditingTreatmentId(null)}>Cancel</button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditingTreatmentId(t.treatmentId);
+                                        setEditingTreatment({ Diagnosis: t.diagnosis, TreatmentDetails: t.treatmentDetails });
+                                      }}
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    <div className="add-treatment card">
+                      <h3>Add Treatment</h3>
+                      <form className="add-treatment-form">
+                        <label>
+                          Diagnosis:
+                          <input
+                            type="text"
+                            placeholder="Diagnosis"
+                            value={newTreatment.Diagnosis}
+                            onChange={(e) => setNewTreatment({ ...newTreatment, Diagnosis: e.target.value })}
+                          />
+                        </label>
+                        <label>
+                          Treatment Details:
+                          <textarea
+                            placeholder="Treatment Details"
+                            value={newTreatment.TreatmentDetails}
+                            onChange={(e) => setNewTreatment({ ...newTreatment, TreatmentDetails: e.target.value })}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={addTreatment}
+                          disabled={!newTreatment.Diagnosis || !newTreatment.TreatmentDetails}
+                        >
+                          Add Treatment
+                        </button>
+                      </form>
+                    </div>
+                  </>
                 )}
               </section>
             )}
 
             {/* Patients Seen Today */}
             {activeTab === "seen" && (
-              <section>
+              <section className="card">
                 <h2>Patients Seen Today</h2>
                 {patientsToday.length > 0 ? (
                   <table>

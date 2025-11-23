@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Models;
 using backend.DTOs;
+using backend.Services;
 
 namespace backend.Controllers
 {
@@ -10,17 +11,12 @@ namespace backend.Controllers
     public class PatientController : ControllerBase
     {
         private readonly MobileDialysisDbContext _context;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _config;
+        private readonly SmsService _smsService;
 
-        public PatientController(
-            MobileDialysisDbContext context,
-            IHttpClientFactory httpClientFactory,
-            IConfiguration config)
+        public PatientController(MobileDialysisDbContext context, SmsService smsService)
         {
             _context = context;
-            _httpClientFactory = httpClientFactory;
-            _config = config;
+            _smsService = smsService;
         }
 
         // ================================
@@ -54,9 +50,7 @@ namespace backend.Controllers
                 })
                 .FirstOrDefaultAsync();
 
-            if (patient == null) 
-                return NotFound("❌ Patient not found.");
-
+            if (patient == null) return NotFound("❌ Patient not found.");
             return Ok(patient);
         }
 
@@ -80,7 +74,7 @@ namespace backend.Controllers
         }
 
         // ================================
-        // GET AVAILABLE SLOTS FOR TRUCK + DATE
+        // GET AVAILABLE SLOTS
         // ================================
         [HttpGet("appointments/available/{truckId}/{date}")]
         public async Task<ActionResult<IEnumerable<string>>> GetAvailableSlots(int truckId, string date)
@@ -127,28 +121,12 @@ namespace backend.Controllers
             if (patient == null || truck == null)
                 return BadRequest("Invalid patient or truck.");
 
-            // Check if patient already has an appointment that day
             var dateOnly = dto.AppointmentDate.Date;
-            var existingAppointment = await _context.Appointments
+            var exists = await _context.Appointments
                 .AnyAsync(a => a.PatientId == dto.PatientId && a.AppointmentDate.Date == dateOnly && a.Status != "Cancelled");
 
-            if (existingAppointment)
+            if (exists)
                 return Conflict("Patient already has an appointment that day.");
-
-            // Determine slot start/end for the chosen appointment
-            var appointmentTime = dto.AppointmentDate.TimeOfDay;
-            var slotStart = new TimeSpan(appointmentTime.Hours / 4 * 4, 0, 0);
-            var slotEnd = slotStart.Add(TimeSpan.FromHours(4));
-
-            // Check truck capacity
-            var bookedCount = await _context.Appointments.CountAsync(a =>
-                a.TruckId == dto.TruckId &&
-                a.Status != "Cancelled" &&
-                a.AppointmentDate.TimeOfDay >= slotStart &&
-                a.AppointmentDate.TimeOfDay < slotEnd);
-
-            if (bookedCount >= truck.Capacity)
-                return Conflict("Slot is fully booked.");
 
             var appointment = new Appointment
             {
@@ -157,54 +135,33 @@ namespace backend.Controllers
                 AppointmentDate = dto.AppointmentDate,
                 Status = "Scheduled"
             };
-
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
-            // ✅ Send SMS notification
+            // ---------------- Create Notification ----------------
+            var notifMessage = $"Your appointment for {dto.AppointmentDate:dddd, MMM dd yyyy HH:mm} on truck {truck.LicensePlate} has been booked successfully.";
+            var notification = new Smsnotification
+            {
+                PatientId = patient.PatientId,
+                Message = notifMessage,
+                SentAt = DateTime.UtcNow,
+                SentBy = "System",
+                SenderId = 0,
+                SenderRole = "Sys"
+            };
+            _context.Smsnotifications.Add(notification);
+            await _context.SaveChangesAsync();
+
             try
             {
-                var client = _httpClientFactory.CreateClient();
-                var smsController = new SmsController(client, _config);
-                await smsController.SendSms(new SmsController.SmsRequest
-                {
-                    PhoneNumber = patient.PhoneNumber,
-                    Message = $"Hello {patient.Name}, your appointment is confirmed for {dto.AppointmentDate:dddd, MMM dd yyyy HH:mm} on truck {truck.LicensePlate}."
-                });
+                await _smsService.SendSms(patient.PhoneNumber, notifMessage);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"SMS error: {ex.Message}");
+                Console.WriteLine($"SMS sending failed: {ex.Message}");
             }
 
-            return Ok(new { Message = "Appointment booked successfully!" });
-        }
-
-        // ================================
-        // GET APPOINTMENTS FOR PATIENT
-        // ================================
-        [HttpGet("appointments/{patientId}")]
-        public async Task<ActionResult<IEnumerable<AppointmentDto>>> GetAppointments(int patientId)
-        {
-            var exists = await _context.Patients.AnyAsync(p => p.PatientId == patientId);
-            if (!exists) return NotFound("❌ Patient not found.");
-
-            var appointments = await _context.Appointments
-                .Include(a => a.Truck)
-                .Where(a => a.PatientId == patientId)
-                .OrderByDescending(a => a.AppointmentDate)
-                .Select(a => new AppointmentDto
-                {
-                    AppointmentId = a.AppointmentId,
-                    AppointmentDate = a.AppointmentDate,
-                    Status = a.Status,
-                    Notes = a.Notes,
-                    TruckPlate = a.Truck != null ? a.Truck.LicensePlate : null,
-                    TruckLocation = a.Truck != null ? a.Truck.CurrentLocation : null
-                })
-                .ToListAsync();
-
-            return Ok(appointments);
+            return Ok(new { Message = notifMessage });
         }
 
         // ================================
@@ -220,29 +177,52 @@ namespace backend.Controllers
             appointment.Status = "Cancelled";
             await _context.SaveChangesAsync();
 
-            // Send cancellation SMS
-            try
-            {
-                var patient = await _context.Patients.FindAsync(appointment.PatientId);
-                var truck = await _context.Trucks.FindAsync(appointment.TruckId);
+            var patient = await _context.Patients.FindAsync(appointment.PatientId);
+            var truck = await _context.Trucks.FindAsync(appointment.TruckId);
 
-                if (patient != null && truck != null)
-                {
-                    var client = _httpClientFactory.CreateClient();
-                    var smsController = new SmsController(client, _config);
-                    await smsController.SendSms(new SmsController.SmsRequest
-                    {
-                        PhoneNumber = patient.PhoneNumber,
-                        Message = $"Hello {patient.Name}, your appointment on {appointment.AppointmentDate:dddd, MMM dd yyyy HH:mm} has been cancelled."
-                    });
-                }
-            }
-            catch (Exception ex)
+            if (patient != null && truck != null)
             {
-                Console.WriteLine($"SMS error: {ex.Message}");
+                var notifMessage = $"Hello {patient.Name}, your appointment on {appointment.AppointmentDate:dddd, MMM dd yyyy HH:mm} has been cancelled.";
+                var notification = new Smsnotification
+                {
+                    PatientId = patient.PatientId,
+                    Message = notifMessage,
+                    SentAt = DateTime.UtcNow,
+                    SentBy = "System",
+                    SenderId = 0,
+                    SenderRole = "Sys"
+                };
+                _context.Smsnotifications.Add(notification);
+                await _context.SaveChangesAsync();
+
+                try
+                {
+                    await _smsService.SendSms(patient.PhoneNumber, notifMessage);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"SMS sending failed: {ex.Message}");
+                }
             }
 
             return Ok(new { Message = "Appointment cancelled successfully!" });
+        }
+
+        // ================================
+        // GET PATIENT NOTIFICATIONS
+        // ================================
+        [HttpGet("notifications/{patientId}")]
+        public async Task<ActionResult<IEnumerable<Smsnotification>>> GetNotifications(int patientId)
+        {
+            var exists = await _context.Patients.AnyAsync(p => p.PatientId == patientId);
+            if (!exists) return NotFound("❌ Patient not found.");
+
+            var notifications = await _context.Smsnotifications
+                .Where(n => n.PatientId == patientId)
+                .OrderByDescending(n => n.SentAt)
+                .ToListAsync();
+
+            return Ok(notifications);
         }
     }
 }

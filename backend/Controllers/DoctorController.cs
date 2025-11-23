@@ -32,24 +32,6 @@ namespace backend.Controllers
             });
         }
 
-        [HttpGet("assigned-truck/{doctorId}")]
-        public async Task<IActionResult> GetAssignedTruck(int doctorId)
-        {
-            var assignment = await _context.TruckStaffAssignments
-                .Include(a => a.Truck)
-                .FirstOrDefaultAsync(a => a.StaffId == doctorId && a.Role == "Doctor");
-
-            if (assignment == null) return NotFound("No assigned truck found.");
-
-            return Ok(new
-            {
-                assignment.Truck.TruckId,
-                assignment.Truck.LicensePlate,
-                assignment.Truck.CurrentLocation,
-                assignment.Truck.Capacity
-            });
-        }
-
         [HttpGet("patients/{patientId}")]
         public async Task<IActionResult> GetPatient(int patientId)
         {
@@ -86,41 +68,63 @@ namespace backend.Controllers
             return Ok(treatments);
         }
 
-        [HttpPost("patients/{patientId}/treatment")]
-        public async Task<IActionResult> AddTreatmentRecord(int patientId, [FromBody] TreatmentSummaryDto dto)
-        {
-            var patientExists = await _context.Patients.AnyAsync(p => p.PatientId == patientId);
-            if (!patientExists) return NotFound("Patient not found.");
-
-            var treatment = new TreatmentRecord
-            {
-                PatientId = patientId,
-                TreatmentDate = DateTime.UtcNow,
-                Diagnosis = dto.Diagnosis,
-                TreatmentDetails = dto.TreatmentDetails
-            };
-
-            _context.TreatmentRecords.Add(treatment);
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                Message = "Treatment record added successfully.",
-                TreatmentId = treatment.TreatmentId
-            });
-        }
-
-        [HttpPut("patients/{patientId}/diagnosis")]
-        public async Task<IActionResult> UpdatePatientDiagnosis(int patientId, [FromBody] string newDiagnosis)
+        /// <summary>
+        /// Update patient diagnosis and add treatment record in one request.
+        /// Automatically links treatment to the patient's latest appointment if exists.
+        /// </summary>
+        [HttpPut("patients/{patientId}/update")]
+        public async Task<IActionResult> UpdatePatientDiagnosisAndTreatment(int patientId, [FromBody] TreatmentSummaryDto dto)
         {
             var patient = await _context.Patients.FindAsync(patientId);
             if (patient == null) return NotFound("Patient not found.");
 
-            patient.MedicalHistory = newDiagnosis;
+            // Update diagnosis on patient
+            if (!string.IsNullOrWhiteSpace(dto.Diagnosis))
+                patient.MedicalHistory = dto.Diagnosis;
+
             _context.Entry(patient).State = EntityState.Modified;
+
+            // Add treatment if TreatmentDetails provided
+            if (!string.IsNullOrWhiteSpace(dto.TreatmentDetails))
+            {
+                // Get the latest appointment for patient
+                var latestAppointment = await _context.Appointments
+                    .Where(a => a.PatientId == patientId)
+                    .OrderByDescending(a => a.AppointmentDate)
+                    .FirstOrDefaultAsync();
+
+                if (latestAppointment == null)
+                    return BadRequest("Cannot add treatment: no appointment exists for patient.");
+
+                var treatment = new TreatmentRecord
+                {
+                    PatientId = patientId,
+                    AppointmentId = latestAppointment.AppointmentId, // satisfy FK constraint
+                    Diagnosis = dto.Diagnosis ?? patient.MedicalHistory,
+                    TreatmentDetails = dto.TreatmentDetails,
+                    TreatmentDate = DateTime.UtcNow
+                };
+                _context.TreatmentRecords.Add(treatment);
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok("Patient diagnosis and treatment updated successfully.");
+        }
+
+        [HttpPut("treatment/{treatmentId}")]
+        public async Task<IActionResult> UpdateTreatmentDetails(int treatmentId, [FromBody] TreatmentSummaryDto dto)
+        {
+            var treatment = await _context.TreatmentRecords.FindAsync(treatmentId);
+            if (treatment == null)
+                return NotFound("Treatment record not found.");
+
+            treatment.Diagnosis = dto.Diagnosis ?? treatment.Diagnosis;
+            treatment.TreatmentDetails = dto.TreatmentDetails ?? treatment.TreatmentDetails;
+
+            _context.Entry(treatment).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return Ok("Patient diagnosis updated successfully.");
+            return Ok("Treatment record updated successfully.");
         }
 
         [HttpGet("patients-seen-today")]
