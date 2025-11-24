@@ -202,6 +202,11 @@ export default function NurseDashboard() {
     const a = appointments.find((x) => x.appointmentId === appointmentId);
     if (!a) return showMessage("error", "Appointment not found");
 
+    // Do not allow marking cancelled appointments as complete
+    if (a.status === "Cancelled") {
+      return showMessage("error", "Cancelled appointments cannot be marked as complete");
+    }
+
     try {
       const res = await fetch(
         `${API_BASE}/appointments/${appointmentId}/complete`,
@@ -293,7 +298,6 @@ export default function NurseDashboard() {
           <li className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}>Overview</li>
           <li className={activeTab === "patients" ? "active" : ""} onClick={() => setActiveTab("patients")}>Patients</li>
           <li className={activeTab === "seen" ? "active" : ""} onClick={() => setActiveTab("seen")}>Patients Seen</li>
-          <li className={activeTab === "appointments" ? "active" : ""} onClick={() => setActiveTab("appointments")}>Appointments</li>
           <li className="logout-btn" onClick={handleLogout}>Logout</li>
         </ul>
       </aside>
@@ -312,7 +316,6 @@ export default function NurseDashboard() {
             <div className="cards">
               <div className="card">Total Patients: <b>{patients.length}</b></div>
               <div className="card">Seen on {seenDate}: <b>{patientsSeenByDate.length}</b></div>
-              <div className="card">Appointments (selected patient): <b>{appointments.length}</b></div>
             </div>
 
             <div style={{ marginTop: 12 }}>
@@ -394,14 +397,6 @@ export default function NurseDashboard() {
                 </tbody>
               </table>
             )}
-          </div>
-        )}
-
-        {/* ---------------- APPOINTMENTS TAB ---------------- */}
-        {activeTab === "appointments" && (
-          <div className="appointments-section">
-            <h2>Appointments</h2>
-            <p>Select a patient to view their appointments.</p>
           </div>
         )}
 
@@ -488,7 +483,8 @@ export default function NurseDashboard() {
                             <td>{a.appointmentDate?.split("T")[0]}</td>
                             <td>{a.status}</td>
                             <td>
-                              {a.status === "Completed" ? (
+                              {/* If appointment is Completed or Cancelled show stored notes or '-' */}
+                              {a.status === "Completed" || a.status === "Cancelled" ? (
                                 a.notes || "-"
                               ) : (
                                 <input
@@ -504,14 +500,13 @@ export default function NurseDashboard() {
                               )}
                             </td>
                             <td>
-                              {a.status === "Completed" ? (
+                              {/* Only allow marking as complete when status is neither Completed nor Cancelled */}
+                              {a.status === "Completed" || a.status === "Cancelled" ? (
                                 "-"
                               ) : (
                                 <button
-                                  disabled={!a.editNotes.trim()}
-                                  onClick={() =>
-                                    saveAppointmentNotes(a.appointmentId)
-                                  }
+                                  disabled={!a.editNotes || !a.editNotes.trim()}
+                                  onClick={() => saveAppointmentNotes(a.appointmentId)}
                                 >
                                   Mark Completed
                                 </button>
