@@ -5,229 +5,272 @@ const API_BASE = "http://localhost:5178/api/Nurse";
 
 export default function NurseDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
-
-  // Nurse auth
   const [nurse, setNurse] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [nurseIdInput, setNurseIdInput] = useState("");
 
-  // Data
   const [patients, setPatients] = useState([]);
-  const [patientsSeenToday, setPatientsSeenToday] = useState([]);
+  const [patientsSeenByDate, setPatientsSeenByDate] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [treatments, setTreatments] = useState([]);
 
-  // UI
   const [message, setMessage] = useState(null);
-  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Patient modal
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [editPatient, setEditPatient] = useState(null);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState("treatments");
 
+  const [newPatient, setNewPatient] = useState({
+    name: "",
+    gender: "Male",
+    dateOfBirth: "",
+    phoneNumber: "",
+    email: "",
+    address: "",
+    medicalHistory: ""
+  });
+
+  const [seenDate, setSeenDate] = useState(() =>
+    new Date().toISOString().split("T")[0]
+  );
+
+  // -----------------------------------------------------
+  // UTILS
+  // -----------------------------------------------------
   const showMessage = (type, text, timeout = 4000) => {
     setMessage({ type, text });
     if (timeout) setTimeout(() => setMessage(null), timeout);
   };
 
-  // -------------------- Nurse Confirmation --------------------
+  // -----------------------------------------------------
+  // NURSE PROFILE
+  // -----------------------------------------------------
   const fetchNurseProfile = async (id) => {
     try {
       const res = await fetch(`${API_BASE}/${id}`);
-      if (!res.ok) throw new Error("Nurse not found");
+      if (!res.ok) return false;
+
       const data = await res.json();
       setNurse(data);
-      showMessage("success", "Nurse confirmed");
       return true;
     } catch {
-      setNurse(null);
-      showMessage("error", "⚠️ Nurse ID not found");
       return false;
     }
   };
 
   const handleConfirmNurseId = async (e) => {
     e?.preventDefault();
-    if (!nurseIdInput || isNaN(nurseIdInput)) {
-      showMessage("error", "Enter a valid Nurse ID");
-      return;
-    }
+    if (!nurseIdInput || isNaN(nurseIdInput))
+      return showMessage("error", "Please enter a valid Nurse ID");
+
     const ok = await fetchNurseProfile(nurseIdInput);
-    if (ok) {
-      setConfirmed(true);
-      fetchPatients();
-      fetchPatientsSeenToday();
-    }
+    if (!ok) return showMessage("error", "Nurse ID not found");
+
+    setConfirmed(true);
+    fetchAllPatients();
+    fetchPatientsSeenByDate(seenDate);
   };
 
-  // -------------------- Fetch Patients --------------------
-  const fetchPatients = async () => {
+  // -----------------------------------------------------
+  // PATIENTS
+  // -----------------------------------------------------
+  const fetchAllPatients = async () => {
     try {
+      setLoading(true);
       const res = await fetch(`${API_BASE}/patients`);
-      if (!res.ok) throw new Error();
       const data = await res.json();
       setPatients(data || []);
-    } catch {
-      setPatients([]);
-      showMessage("error", "⚠️ Failed to load patients.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // -------------------- Fetch Patients Seen Today --------------------
-  const fetchPatientsSeenToday = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/patients/seen-today`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setPatientsSeenToday(data || []);
-    } catch {
-      setPatientsSeenToday([]);
-      showMessage("error", "⚠️ Failed to load patients seen today");
-    }
-  };
-
-  // -------------------- Open / Close Patient Modal --------------------
-  const openPatientModal = (patient) => {
-    setSelectedPatient(patient);
-    setEditPatient({ ...patient });
-    setActiveSubTab("treatments");
-    setShowPatientModal(true);
-    fetchTreatmentSummary(patient.patientId);
-    fetchPatientAppointments(patient.patientId);
-  };
-
-  const closePatientModal = () => {
-    setShowPatientModal(false);
-    setSelectedPatient(null);
-    setTreatments([]);
-    setAppointments([]);
-    setEditPatient(null);
-    setIsEditingDetails(false);
-  };
-
-  // -------------------- Fetch Treatment Summary --------------------
-  const fetchTreatmentSummary = async (patientId) => {
-    try {
-      const res = await fetch(`${API_BASE}/patients/${patientId}/treatment-summary`);
-      if (!res.ok) {
-        setTreatments([]);
-        return;
-      }
-      const data = await res.json();
-      setTreatments(data || []);
-    } catch {
-      setTreatments([]);
-      showMessage("error", "⚠️ Failed to load treatment summary.");
-    }
-  };
-
-  // -------------------- Fetch Appointments --------------------
-  const fetchPatientAppointments = async (patientId) => {
-    try {
-      const res = await fetch(`${API_BASE}/patients/${patientId}/appointments`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setAppointments((data || []).map(a => ({ ...a, editNotes: a.notes || "" })));
-    } catch {
-      setAppointments([]);
-      showMessage("error", "⚠️ Failed to load appointments.");
-    }
-  };
-
-  // -------------------- Handle Appointment Notes --------------------
-  const handleAppointmentNoteChange = (appointmentId, value) => {
-    setAppointments(prev => prev.map(a => a.appointmentId === appointmentId ? { ...a, editNotes: value } : a));
-  };
-
-  // -------------------- Save Notes --------------------
-  const saveAppointmentNotes = async (appointmentId) => {
-    const appointment = appointments.find(a => a.appointmentId === appointmentId);
-    if (!appointment) return showMessage("error", "Appointment not found");
-
-    try {
-      const res = await fetch(`${API_BASE}/appointments/${appointmentId}/complete`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: appointment.editNotes, nurseId: nurse.nurseId })
-      });
-      if (!res.ok) throw new Error(await res.text());
-      showMessage("success", "✅ Appointment completed and SMS sent");
-      fetchPatientsSeenToday();
-      if (selectedPatient) fetchPatientAppointments(selectedPatient.patientId);
-    } catch (err) {
-      showMessage("error", `❌ ${err.message}`);
-    }
-  };
-
-  // -------------------- Save Patient Details --------------------
-  const savePatientDetails = async (patientId) => {
-    try {
-      const payload = {
-        name: editPatient.name,
-        gender: editPatient.gender,
-        dateOfBirth: editPatient.dateOfBirth,
-        phoneNumber: editPatient.phoneNumber,
-        email: editPatient.email,
-        address: editPatient.address,
-        medicalHistory: editPatient.medicalHistory
-      };
-      const res = await fetch(`${API_BASE}/patients/${patientId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error(await res.text());
-      showMessage("success", "✅ Patient details updated");
-
-      // Refresh patients & seen today
-      fetchPatients();
-      fetchPatientsSeenToday();
-
-      setSelectedPatient({ ...selectedPatient, ...payload });
-      setIsEditingDetails(false);
-    } catch (err) {
-      showMessage("error", `❌ ${err.message}`);
-    }
-  };
-
-  // -------------------- Add New Patient --------------------
-  const addNewPatient = async (newPatient) => {
+  const addNewPatient = async () => {
     try {
       const res = await fetch(`${API_BASE}/patients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newPatient)
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      showMessage("success", `✅ Patient ${data.name} added`);
 
-      // Refresh patients & seen today
-      fetchPatients();
-      fetchPatientsSeenToday();
+      if (!res.ok) throw new Error(await res.text());
+
+      const data = await res.json();
+      showMessage("success", `Patient ${data.name} added successfully`);
+
+      fetchAllPatients();
+      fetchPatientsSeenByDate(seenDate);
+
+      setShowAddPatientModal(false);
+      setNewPatient({
+        name: "",
+        gender: "Male",
+        dateOfBirth: "",
+        phoneNumber: "",
+        email: "",
+        address: "",
+        medicalHistory: ""
+      });
     } catch (err) {
-      showMessage("error", `❌ ${err.message}`);
+      showMessage("error", err.message);
     }
   };
 
-  const handleLogout = () => {
-    setNurse(null);
-    setConfirmed(false);
-    setNurseIdInput("");
-    setPatients([]);
-    setPatientsSeenToday([]);
-    setActiveTab("overview");
-    closePatientModal();
+  const savePatientDetails = async (patientId) => {
+    try {
+      const res = await fetch(`${API_BASE}/patients/${patientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editPatient)
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+
+      showMessage("success", "Patient details updated");
+
+      fetchAllPatients();
+      fetchPatientsSeenByDate(seenDate);
+
+      setIsEditingDetails(false);
+    } catch (err) {
+      showMessage("error", err.message);
+    }
   };
 
-  // -------------------- Render --------------------
+  // -----------------------------------------------------
+  // PATIENTS SEEN BY DATE
+  // -----------------------------------------------------
+  const fetchPatientsSeenByDate = async (date) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/patients/seen-on?date=${date}`);
+      const data = await res.json();
+      setPatientsSeenByDate(data || []);
+    } catch {
+      setPatientsSeenByDate([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // auto update on date change
+  useEffect(() => {
+    if (confirmed) fetchPatientsSeenByDate(seenDate);
+  }, [seenDate]);
+
+  // -----------------------------------------------------
+  // PATIENT TREATMENT & APPOINTMENTS
+  // -----------------------------------------------------
+  const fetchTreatmentSummary = async (patientId) => {
+    try {
+      const res = await fetch(`${API_BASE}/patients/${patientId}/treatment-summary`);
+      const data = await res.json();
+      setTreatments(data || []);
+    } catch {
+      setTreatments([]);
+    }
+  };
+
+  const fetchPatientAppointments = async (patientId) => {
+    try {
+      const res = await fetch(`${API_BASE}/patients/${patientId}/appointments`);
+      const data = await res.json();
+
+      setAppointments(
+        data.map((a) => ({
+          ...a,
+          editNotes: a.notes || ""
+        }))
+      );
+    } catch {
+      setAppointments([]);
+    }
+  };
+
+  const handleAppointmentNoteChange = (id, value) => {
+    setAppointments((prev) =>
+      prev.map((a) => (a.appointmentId === id ? { ...a, editNotes: value } : a))
+    );
+  };
+
+  const saveAppointmentNotes = async (appointmentId) => {
+    const a = appointments.find((x) => x.appointmentId === appointmentId);
+    if (!a) return showMessage("error", "Appointment not found");
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/appointments/${appointmentId}/complete`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: a.editNotes })
+        }
+      );
+
+      if (!res.ok) throw new Error(await res.text());
+
+      showMessage("success", "Appointment completed successfully");
+
+      fetchPatientAppointments(selectedPatient.patientId);
+      fetchPatientsSeenByDate(seenDate);
+    } catch (err) {
+      showMessage("error", err.message);
+    }
+  };
+
+  // -----------------------------------------------------
+  // PATIENT MODAL
+  // -----------------------------------------------------
+  const openPatientModal = (p) => {
+    setSelectedPatient(p);
+    setEditPatient({ ...p });
+    setIsEditingDetails(false);
+    setActiveSubTab("treatments");
+
+    setShowPatientModal(true);
+
+    fetchTreatmentSummary(p.patientId);
+    fetchPatientAppointments(p.patientId);
+  };
+
+  const closePatientModal = () => {
+    setShowPatientModal(false);
+    setSelectedPatient(null);
+    setEditPatient(null);
+    setAppointments([]);
+    setTreatments([]);
+  };
+
+  // -----------------------------------------------------
+  // LOGOUT
+  // -----------------------------------------------------
+  const handleLogout = () => {
+    setConfirmed(false);
+    setNurse(null);
+    setNurseIdInput("");
+    setPatients([]);
+    setPatientsSeenByDate([]);
+    setAppointments([]);
+    setTreatments([]);
+  };
+
+  // -----------------------------------------------------
+  // UI RENDERING
+  // -----------------------------------------------------
   if (!confirmed) {
     return (
       <div className="confirm-nurse-id">
         <h2>Confirm Your Nurse ID</h2>
-        {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+
+        {message && (
+          <div className={`alert ${message.type}`}>{message.text}</div>
+        )}
+
         <form onSubmit={handleConfirmNurseId}>
           <input
             type="text"
@@ -235,7 +278,7 @@ export default function NurseDashboard() {
             value={nurseIdInput}
             onChange={(e) => setNurseIdInput(e.target.value)}
           />
-          <button type="submit">Confirm ID</button>
+          <button type="submit">Confirm</button>
         </form>
       </div>
     );
@@ -243,16 +286,19 @@ export default function NurseDashboard() {
 
   return (
     <div className="nurse-dashboard">
+      {/* ---------------- SIDEBAR ---------------- */}
       <aside className="sidebar">
         <h2>DialyGo Nurse</h2>
         <ul>
           <li className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}>Overview</li>
           <li className={activeTab === "patients" ? "active" : ""} onClick={() => setActiveTab("patients")}>Patients</li>
-          <li className={activeTab === "seen" ? "active" : ""} onClick={() => setActiveTab("seen")}>Patients Seen Today</li>
+          <li className={activeTab === "seen" ? "active" : ""} onClick={() => setActiveTab("seen")}>Patients Seen</li>
+          <li className={activeTab === "appointments" ? "active" : ""} onClick={() => setActiveTab("appointments")}>Appointments</li>
           <li className="logout-btn" onClick={handleLogout}>Logout</li>
         </ul>
       </aside>
 
+      {/* ---------------- MAIN ---------------- */}
       <main className="main-content">
         <header>
           <h1>Welcome, {nurse?.name?.split(" ")[0] || "Nurse"}</h1>
@@ -260,34 +306,51 @@ export default function NurseDashboard() {
 
         {message && <div className={`alert ${message.type}`}>{message.text}</div>}
 
-        {/* Overview */}
+        {/* ---------------- OVERVIEW ---------------- */}
         {activeTab === "overview" && (
           <div className="overview">
             <div className="cards">
               <div className="card">Total Patients: <b>{patients.length}</b></div>
-              <div className="card">Patients Seen Today: <b>{patientsSeenToday.length}</b></div>
+              <div className="card">Seen on {seenDate}: <b>{patientsSeenByDate.length}</b></div>
+              <div className="card">Appointments (selected patient): <b>{appointments.length}</b></div>
             </div>
-            <button onClick={() => { fetchPatients(); fetchPatientsSeenToday(); }}>Refresh</button>
+
+            <div style={{ marginTop: 12 }}>
+              <label>Patients seen date: </label>
+              <input
+                type="date"
+                value={seenDate}
+                onChange={(e) => setSeenDate(e.target.value)}
+              />
+            </div>
           </div>
         )}
 
-        {/* Patients */}
+        {/* ---------------- PATIENTS LIST ---------------- */}
         {activeTab === "patients" && (
           <div className="patients-section">
-            <h2>Patient Management</h2>
-            {patients.length === 0 ? <p>No patients found.</p> : (
+            <h2>Patients</h2>
+            <button onClick={() => setShowAddPatientModal(true)}>Add New Patient</button>
+
+            {loading ? (
+              <p>Loading...</p>
+            ) : patients.length === 0 ? (
+              <p>No patients available.</p>
+            ) : (
               <table className="data-table">
                 <thead>
                   <tr><th>ID</th><th>Name</th><th>Gender</th><th>Phone</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
-                  {patients.map(p => (
+                  {patients.map((p) => (
                     <tr key={p.patientId}>
                       <td>{p.patientId}</td>
                       <td>{p.name}</td>
                       <td>{p.gender}</td>
                       <td>{p.phoneNumber}</td>
-                      <td><button onClick={() => openPatientModal(p)}>View</button></td>
+                      <td>
+                        <button onClick={() => openPatientModal(p)}>View</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -296,21 +359,36 @@ export default function NurseDashboard() {
           </div>
         )}
 
-        {/* Patients Seen Today */}
+        {/* ---------------- PATIENTS SEEN ---------------- */}
         {activeTab === "seen" && (
-          <div className="patients-seen-today">
-            <h2>Patients Seen Today</h2>
-            {patientsSeenToday.length === 0 ? <p>No patients seen today.</p> : (
+          <div className="patients-seen">
+            <h2>Patients Seen</h2>
+
+            <div style={{ marginBottom: 10 }}>
+              <label>Date: </label>
+              <input
+                type="date"
+                value={seenDate}
+                onChange={(e) => setSeenDate(e.target.value)}
+              />
+            </div>
+
+            {loading ? (
+              <p>Loading...</p>
+            ) : patientsSeenByDate.length === 0 ? (
+              <p>No patients seen on this date.</p>
+            ) : (
               <table className="data-table">
                 <thead>
-                  <tr><th>ID</th><th>Name</th><th>Phone</th></tr>
+                  <tr><th>ID</th><th>Name</th><th>Phone</th><th>Date</th></tr>
                 </thead>
                 <tbody>
-                  {patientsSeenToday.map(p => (
+                  {patientsSeenByDate.map((p) => (
                     <tr key={p.patientId}>
                       <td>{p.patientId}</td>
                       <td>{p.name}</td>
                       <td>{p.phoneNumber}</td>
+                      <td>{(p.appointmentDate || "").split("T")[0]}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -319,11 +397,49 @@ export default function NurseDashboard() {
           </div>
         )}
 
-        {/* Patient Modal */}
+        {/* ---------------- APPOINTMENTS TAB ---------------- */}
+        {activeTab === "appointments" && (
+          <div className="appointments-section">
+            <h2>Appointments</h2>
+            <p>Select a patient to view their appointments.</p>
+          </div>
+        )}
+
+        {/* -------------------------------------------------
+            ADD PATIENT MODAL
+        ------------------------------------------------- */}
+        {showAddPatientModal && (
+          <div className="modal front">
+            <div className="modal-content">
+              <header>
+                <h3>Add New Patient</h3>
+                <button className="close-btn" onClick={() => setShowAddPatientModal(false)}>X</button>
+              </header>
+
+              <div className="form-group">
+                <input placeholder="Name" value={newPatient.name} onChange={(e) => setNewPatient({ ...newPatient, name: e.target.value })} />
+                <select value={newPatient.gender} onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value })}>
+                  <option>Male</option><option>Female</option><option>Other</option>
+                </select>
+                <input type="date" value={newPatient.dateOfBirth} onChange={(e) => setNewPatient({ ...newPatient, dateOfBirth: e.target.value })} />
+                <input placeholder="Phone" value={newPatient.phoneNumber} onChange={(e) => setNewPatient({ ...newPatient, phoneNumber: e.target.value })} />
+                <input placeholder="Email" value={newPatient.email} onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })} />
+                <input placeholder="Address" value={newPatient.address} onChange={(e) => setNewPatient({ ...newPatient, address: e.target.value })} />
+                <textarea placeholder="Medical History" value={newPatient.medicalHistory} onChange={(e) => setNewPatient({ ...newPatient, medicalHistory: e.target.value })} />
+
+                <button onClick={addNewPatient}>Add Patient</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* -------------------------------------------------
+            PATIENT MODAL
+        ------------------------------------------------- */}
         {showPatientModal && selectedPatient && (
           <div className="modal front">
             <div className="modal-content">
-              <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <header>
                 <h3>{selectedPatient.name}</h3>
                 <button className="close-btn" onClick={closePatientModal}>X</button>
               </header>
@@ -331,85 +447,111 @@ export default function NurseDashboard() {
               <div className="patient-tabs">
                 <button className={activeSubTab === "treatments" ? "active" : ""} onClick={() => setActiveSubTab("treatments")}>Treatments</button>
                 <button className={activeSubTab === "appointments" ? "active" : ""} onClick={() => setActiveSubTab("appointments")}>Appointments</button>
-                <button className={activeSubTab === "details" ? "active" : ""} onClick={() => setActiveSubTab("details")}>Patient Details</button>
+                <button className={activeSubTab === "details" ? "active" : ""} onClick={() => setActiveSubTab("details")}>Details</button>
               </div>
 
               <div className="tab-content">
-                {/* Treatments */}
+                {/* ------------ TREATMENTS ------------- */}
                 {activeSubTab === "treatments" && (
                   <table className="data-table">
                     <thead>
                       <tr><th>Date</th><th>Diagnosis</th><th>Details</th></tr>
                     </thead>
                     <tbody>
-                      {treatments.length === 0 ? <tr><td colSpan={3}>No treatments</td></tr> :
-                        treatments.map((t, idx) => (
-                          <tr key={idx}>
-                            <td>{(t.treatmentDate || "").split("T")[0]}</td>
+                      {treatments.length === 0 ? (
+                        <tr><td colSpan="3">No treatment records</td></tr>
+                      ) : (
+                        treatments.map((t, i) => (
+                          <tr key={i}>
+                            <td>{t.treatmentDate?.split("T")[0]}</td>
                             <td>{t.diagnosis}</td>
                             <td>{t.treatmentDetails}</td>
                           </tr>
-                        ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 )}
 
-                {/* Appointments */}
+                {/* ------------ APPOINTMENTS ------------- */}
                 {activeSubTab === "appointments" && (
                   <table className="data-table">
                     <thead>
                       <tr><th>Date</th><th>Status</th><th>Notes</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
-                      {appointments.length === 0 ? <tr><td colSpan={4}>No appointments</td></tr> :
-                        appointments.map(a => (
+                      {appointments.length === 0 ? (
+                        <tr><td colSpan="4">No appointments</td></tr>
+                      ) : (
+                        appointments.map((a) => (
                           <tr key={a.appointmentId}>
-                            <td>{(a.appointmentDate || "").split("T")[0]}</td>
+                            <td>{a.appointmentDate?.split("T")[0]}</td>
                             <td>{a.status}</td>
                             <td>
-                              {(a.status === "Completed" || a.status === "Cancelled") ? a.notes || "-" :
+                              {a.status === "Completed" ? (
+                                a.notes || "-"
+                              ) : (
                                 <input
                                   type="text"
-                                  value={a.editNotes || ""}
-                                  onChange={(e) => handleAppointmentNoteChange(a.appointmentId, e.target.value)}
-                                />}
+                                  value={a.editNotes}
+                                  onChange={(e) =>
+                                    handleAppointmentNoteChange(
+                                      a.appointmentId,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                              )}
                             </td>
                             <td>
-                              {(a.status !== "Completed" && a.status !== "Cancelled") &&
-                                <button onClick={() => saveAppointmentNotes(a.appointmentId)} disabled={!a.editNotes || !a.editNotes.trim()}>Mark Completed</button>}
+                              {a.status === "Completed" ? (
+                                "-"
+                              ) : (
+                                <button
+                                  disabled={!a.editNotes.trim()}
+                                  onClick={() =>
+                                    saveAppointmentNotes(a.appointmentId)
+                                  }
+                                >
+                                  Mark Completed
+                                </button>
+                              )}
                             </td>
                           </tr>
-                        ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 )}
 
-                {/* Patient Details */}
-                {activeSubTab === "details" && editPatient && (
+                {/* ------------ PATIENT DETAILS ------------- */}
+                {activeSubTab === "details" && (
                   <div className="patient-details">
                     {!isEditingDetails ? (
                       <>
                         <p><b>Name:</b> {editPatient.name}</p>
                         <p><b>Gender:</b> {editPatient.gender}</p>
-                        <p><b>DOB:</b> {(editPatient.dateOfBirth || "").split("T")[0]}</p>
+                        <p><b>DOB:</b> {editPatient.dateOfBirth?.split("T")[0]}</p>
                         <p><b>Phone:</b> {editPatient.phoneNumber}</p>
                         <p><b>Email:</b> {editPatient.email}</p>
                         <p><b>Address:</b> {editPatient.address}</p>
                         <p><b>Medical History:</b> {editPatient.medicalHistory}</p>
+
                         <button onClick={() => setIsEditingDetails(true)}>Edit</button>
                       </>
                     ) : (
                       <>
-                        <input value={editPatient.name} onChange={e => setEditPatient({ ...editPatient, name: e.target.value })} />
-                        <select value={editPatient.gender} onChange={e => setEditPatient({ ...editPatient, gender: e.target.value })}>
+                        <input value={editPatient.name} onChange={(e) => setEditPatient({ ...editPatient, name: e.target.value })} />
+                        <select value={editPatient.gender} onChange={(e) => setEditPatient({ ...editPatient, gender: e.target.value })}>
                           <option>Male</option><option>Female</option><option>Other</option>
                         </select>
-                        <input type="date" value={(editPatient.dateOfBirth || "").split("T")[0]} onChange={e => setEditPatient({ ...editPatient, dateOfBirth: e.target.value })} />
-                        <input placeholder="Phone" value={editPatient.phoneNumber} onChange={e => setEditPatient({ ...editPatient, phoneNumber: e.target.value })} />
-                        <input placeholder="Email" value={editPatient.email} onChange={e => setEditPatient({ ...editPatient, email: e.target.value })} />
-                        <input placeholder="Address" value={editPatient.address} onChange={e => setEditPatient({ ...editPatient, address: e.target.value })} />
-                        <textarea placeholder="Medical History" value={editPatient.medicalHistory} onChange={e => setEditPatient({ ...editPatient, medicalHistory: e.target.value })} />
-                        <button onClick={() => savePatientDetails(editPatient.patientId)}>Save</button>
+                        <input type="date" value={editPatient.dateOfBirth?.split("T")[0]} onChange={(e) => setEditPatient({ ...editPatient, dateOfBirth: e.target.value })} />
+                        <input value={editPatient.phoneNumber} onChange={(e) => setEditPatient({ ...editPatient, phoneNumber: e.target.value })} />
+                        <input value={editPatient.email} onChange={(e) => setEditPatient({ ...editPatient, email: e.target.value })} />
+                        <input value={editPatient.address} onChange={(e) => setEditPatient({ ...editPatient, address: e.target.value })} />
+                        <textarea value={editPatient.medicalHistory} onChange={(e) => setEditPatient({ ...editPatient, medicalHistory: e.target.value })} />
+
+                        <button onClick={() => savePatientDetails(selectedPatient.patientId)}>Save</button>
                         <button onClick={() => setIsEditingDetails(false)}>Cancel</button>
                       </>
                     )}

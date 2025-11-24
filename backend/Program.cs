@@ -26,6 +26,7 @@ builder.Services.AddDbContext<MobileDialysisDbContext>(options =>
 );
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<SmsService>();
+//builder.Services.AddScoped<AppointmentReminderService>();
 
 // Register SMS service
 //builder.Services.AddScoped<backend.Services.InfobipSmsService>();

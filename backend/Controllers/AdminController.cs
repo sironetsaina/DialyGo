@@ -91,20 +91,7 @@ namespace backend.Controllers
             return Ok(nurse);
         }
 
-        [HttpPost("nurses")]
-        public async Task<IActionResult> CreateNurse([FromBody] NurseCreateDto dto)
-        {
-            var nurse = new Nurse
-            {
-                Name = dto.Name,
-                Email = dto.Email,
-                PhoneNumber = dto.PhoneNumber
-            };
-
-            _context.Nurses.Add(nurse);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetNurse), new { id = nurse.NurseId }, nurse);
-        }
+        
 
         [HttpPut("nurses/{id}")]
         public async Task<IActionResult> UpdateNurse(int id, [FromBody] NurseCreateDto dto)
@@ -333,6 +320,28 @@ public async Task<IActionResult> GetMetrics()
         return StatusCode(500, "Error retrieving metrics: " + ex.Message);
     }
 }
+
+
+
+
+
+
+[HttpPost("nurses")]
+        public async Task<IActionResult> CreateNurse([FromBody] NurseCreateDto dto)
+        {
+            var nurse = new Nurse
+            {
+                Name = dto.Name,
+                Email = dto.Email,
+                PhoneNumber = dto.PhoneNumber
+            };
+
+            _context.Nurses.Add(nurse);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetNurse), new { id = nurse.NurseId }, nurse);
+        }
+
+
 
         [HttpDelete("trucks/{id}")]
         public async Task<IActionResult> DeleteTruck(int id)

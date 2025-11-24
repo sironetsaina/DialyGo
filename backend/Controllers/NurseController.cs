@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Models;
 using backend.DTOs;
-using System.Text;
-using System.Text.Json;
 
 namespace backend.Controllers
 {
@@ -12,17 +10,10 @@ namespace backend.Controllers
     public class NurseController : ControllerBase
     {
         private readonly MobileDialysisDbContext _context;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _config;
 
-        public NurseController(
-            MobileDialysisDbContext context,
-            IHttpClientFactory httpClientFactory,
-            IConfiguration config)
+        public NurseController(MobileDialysisDbContext context)
         {
             _context = context;
-            _httpClientFactory = httpClientFactory;
-            _config = config;
         }
 
         // ---------------- 1️⃣ REGISTER NEW PATIENT ----------------
@@ -43,15 +34,25 @@ namespace backend.Controllers
             _context.Patients.Add(patient);
             await _context.SaveChangesAsync();
 
-            // Mark patient as seen today
-            var tempAppointment = new Appointment
+            var appointment = new Appointment
             {
                 PatientId = patient.PatientId,
                 Status = "Completed",
                 AppointmentDate = DateTime.UtcNow,
                 Notes = "New patient registered counts as seen"
             };
-            _context.Appointments.Add(tempAppointment);
+            _context.Appointments.Add(appointment);
+            await _context.SaveChangesAsync();
+
+            var treatment = new TreatmentRecord
+            {
+                PatientId = patient.PatientId,
+                AppointmentId = appointment.AppointmentId,
+                Diagnosis = "Seen today (new patient)",
+                TreatmentDetails = "Auto-generated entry",
+                TreatmentDate = DateTime.UtcNow
+            };
+            _context.TreatmentRecords.Add(treatment);
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetPatient), new { id = patient.PatientId }, new PatientDto
@@ -92,28 +93,39 @@ namespace backend.Controllers
             var patient = await _context.Patients.FindAsync(id);
             if (patient == null) return NotFound();
 
-            patient.Name = dto.Name;
-            patient.Gender = dto.Gender;
-            patient.DateOfBirth = dto.DateOfBirth;
-            patient.PhoneNumber = dto.PhoneNumber;
-            patient.Email = dto.Email;
-            patient.Address = dto.Address;
-            patient.MedicalHistory = dto.MedicalHistory;
+            patient.Name = dto.Name ?? patient.Name;
+            patient.Gender = dto.Gender ?? patient.Gender;
+            patient.DateOfBirth = dto.DateOfBirth ?? patient.DateOfBirth;
+            patient.PhoneNumber = dto.PhoneNumber ?? patient.PhoneNumber;
+            patient.Email = dto.Email ?? patient.Email;
+            patient.Address = dto.Address ?? patient.Address;
 
-            await _context.SaveChangesAsync();
-
-            // Mark patient as seen today
-            var tempAppointment = new Appointment
+            if (!string.IsNullOrWhiteSpace(dto.MedicalHistory))
             {
-                PatientId = patient.PatientId,
-                Status = "Completed",
-                AppointmentDate = DateTime.UtcNow,
-                Notes = "Patient updated counts as seen"
-            };
-            _context.Appointments.Add(tempAppointment);
+                patient.MedicalHistory = dto.MedicalHistory;
+
+                var latestAppointment = await _context.Appointments
+                    .Where(a => a.PatientId == id)
+                    .OrderByDescending(a => a.AppointmentDate)
+                    .FirstOrDefaultAsync();
+
+                if (latestAppointment != null)
+                {
+                    _context.TreatmentRecords.Add(new TreatmentRecord
+                    {
+                        PatientId = id,
+                        AppointmentId = latestAppointment.AppointmentId,
+                        Diagnosis = dto.MedicalHistory,
+                        TreatmentDetails = "Updated medical history",
+                        TreatmentDate = DateTime.UtcNow
+                    });
+                }
+            }
+
+            _context.Entry(patient).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return Ok("Patient details and medical history updated successfully.");
         }
 
         // ---------------- 4️⃣ GET TREATMENT HISTORY ----------------
@@ -130,29 +142,12 @@ namespace backend.Controllers
                 })
                 .ToListAsync();
 
-            if (treatments == null || treatments.Count == 0)
-                return NotFound("No treatment records found for this patient.");
+            if (treatments.Count == 0) return NotFound("No treatment records found for this patient.");
 
             return Ok(treatments);
         }
 
-        // ---------------- 5️⃣ GET NURSE BY ID ----------------
-        [HttpGet("{id}")]
-        public async Task<ActionResult<NurseCreateDto>> GetNurseById(int id)
-        {
-            var nurse = await _context.Nurses.FindAsync(id);
-            if (nurse == null) return NotFound();
-
-            return Ok(new NurseCreateDto
-            {
-                NurseId = nurse.NurseId,
-                Name = nurse.Name,
-                Email = nurse.Email,
-                PhoneNumber = nurse.PhoneNumber
-            });
-        }
-
-        // ---------------- 6️⃣ GET ALL PATIENTS ----------------
+        // ---------------- 5️⃣ GET ALL PATIENTS ----------------
         [HttpGet("patients")]
         public async Task<ActionResult<IEnumerable<PatientDto>>> GetAllPatients()
         {
@@ -172,178 +167,136 @@ namespace backend.Controllers
             return Ok(patients);
         }
 
-        // ---------------- 7️⃣ GET PATIENT APPOINTMENTS ----------------
-        [HttpGet("patients/{patientId}/appointments")]
-        public async Task<ActionResult<IEnumerable<AppointmentDto>>> GetPatientAppointments(int patientId)
-        {
-            var exists = await _context.Patients.AnyAsync(p => p.PatientId == patientId);
-            if (!exists) return NotFound("Patient not found.");
-
-            var appointments = await _context.Appointments
-                .Include(a => a.Truck)
-                .Where(a => a.PatientId == patientId)
-                .OrderByDescending(a => a.AppointmentDate)
-                .Select(a => new AppointmentDto
-                {
-                    AppointmentId = a.AppointmentId,
-                    AppointmentDate = a.AppointmentDate,
-                    Status = a.Status,
-                    Notes = a.Notes,
-                    TruckPlate = a.Truck != null ? a.Truck.LicensePlate : null,
-                    TruckLocation = a.Truck != null ? a.Truck.CurrentLocation : null
-                })
-                .ToListAsync();
-
-            return Ok(appointments);
-        }
-
-        // ---------------- 8️⃣ GET PATIENTS SEEN TODAY ----------------
+        // ---------------- 6️⃣ GET PATIENTS SEEN TODAY ----------------
         [HttpGet("patients/seen-today")]
         public async Task<IActionResult> GetPatientsSeenToday()
         {
             var today = DateTime.UtcNow.Date;
+            return await GetPatientsSeenByDate(today);
+        }
 
-            var patients = await _context.Appointments
+        // ---------------- 7️⃣ GET PATIENTS SEEN ON SPECIFIC DATE ----------------
+        [HttpGet("patients/seen-on")]
+        public async Task<IActionResult> GetPatientsSeenOnDate([FromQuery] DateTime date)
+        {
+            return await GetPatientsSeenByDate(date.Date);
+        }
+
+        private async Task<IActionResult> GetPatientsSeenByDate(DateTime date)
+        {
+            var start = date.Date;
+            var end = start.AddDays(1);
+
+            var appointments = await _context.Appointments
                 .Where(a => a.Status == "Completed" &&
-                            a.AppointmentDate >= today &&
-                            a.AppointmentDate < today.AddDays(1))
+                            a.AppointmentDate >= start &&
+                            a.AppointmentDate < end)
                 .Include(a => a.Patient)
-                .Select(a => new
-                {
-                    patientId = a.Patient.PatientId,
-                    name = a.Patient.Name,
-                    phoneNumber = a.Patient.PhoneNumber
-                })
-                .Distinct()
-                .OrderBy(p => p.name)
                 .ToListAsync();
 
-            return Ok(patients);
-        }
-        [HttpPut("patients/{patientId}/update")]
-public async Task<IActionResult> UpdatePatientDetails(int patientId, [FromBody] PatientUpdateDto dto)
-{
-    var patient = await _context.Patients.FindAsync(patientId);
-    if (patient == null) return NotFound("Patient not found.");
-
-    // Update patient basic details
-    patient.Name = dto.Name ?? patient.Name;
-    patient.Gender = dto.Gender ?? patient.Gender;
-    patient.DateOfBirth = dto.DateOfBirth ?? patient.DateOfBirth;
-    patient.PhoneNumber = dto.PhoneNumber ?? patient.PhoneNumber;
-    patient.Email = dto.Email ?? patient.Email;
-    patient.Address = dto.Address ?? patient.Address;
-
-    // Update medical history
-    if (!string.IsNullOrWhiteSpace(dto.MedicalHistory))
-    {
-        patient.MedicalHistory = dto.MedicalHistory;
-
-        // Add a "medical history record" as a treatment record for tracking
-        var latestAppointment = await _context.Appointments
-            .Where(a => a.PatientId == patientId)
-            .OrderByDescending(a => a.AppointmentDate)
-            .FirstOrDefaultAsync();
-
-        if (latestAppointment != null)
-        {
-            var treatment = new TreatmentRecord
+            foreach (var appointment in appointments)
             {
-                PatientId = patientId,
-                AppointmentId = latestAppointment.AppointmentId,
-                Diagnosis = dto.MedicalHistory,
-                TreatmentDetails = "Updated medical history",
-                TreatmentDate = DateTime.UtcNow
-            };
-            _context.TreatmentRecords.Add(treatment);
-        }
-    }
+                var exists = await _context.TreatmentRecords
+                    .AnyAsync(tr => tr.PatientId == appointment.PatientId &&
+                                    tr.AppointmentId == appointment.AppointmentId);
 
-    _context.Entry(patient).State = EntityState.Modified;
-    await _context.SaveChangesAsync();
-
-    return Ok("Patient details and medical history updated successfully.");
-}
-
-
-        // ---------------- 9️⃣ COMPLETE APPOINTMENT ----------------
-        [HttpPut("appointments/{appointmentId}/complete")]
-        public async Task<IActionResult> CompleteAppointment(
-            int appointmentId,
-            [FromBody] AppointmentUpdateDto dto)
-        {
-            var appointment = await _context.Appointments.FindAsync(appointmentId);
-            if (appointment == null) return NotFound("Appointment not found.");
-
-            var patient = await _context.Patients.FindAsync(appointment.PatientId);
-            if (patient == null) return NotFound("Patient not found.");
-
-            if (string.IsNullOrWhiteSpace(dto.Notes))
-                return BadRequest("Notes are required to complete the appointment.");
-
-            appointment.Status = "Completed";
-            appointment.Notes = dto.Notes;
+                if (!exists)
+                {
+                    _context.TreatmentRecords.Add(new TreatmentRecord
+                    {
+                        PatientId = appointment.PatientId,
+                        AppointmentId = appointment.AppointmentId,
+                        Diagnosis = $"Seen on {date:yyyy-MM-dd} (no diagnosis yet)",
+                        TreatmentDetails = "Auto-generated entry",
+                        TreatmentDate = appointment.AppointmentDate
+                    });
+                }
+            }
 
             await _context.SaveChangesAsync();
 
-            // Format phone number to international format
-            string phoneNumber = patient.PhoneNumber;
-            if (!phoneNumber.StartsWith("+"))
-                phoneNumber = "+254" + patient.PhoneNumber.TrimStart('0');
+            var patients = appointments
+                .Select(a => new
+                {
+                    a.Patient.PatientId,
+                    a.Patient.Name,
+                    a.Patient.PhoneNumber,
+                    AppointmentDate = a.AppointmentDate
+                })
+                .OrderBy(p => p.Name)
+                .ToList();
 
-            string message = $"Hello {patient.Name}, your dialysis appointment on {appointment.AppointmentDate:dddd, MMM dd yyyy HH:mm} has been completed. Nurse notes: {dto.Notes}";
+            return Ok(patients);
+        }
 
-            try
+        // -------------------- GET APPOINTMENTS BY PATIENT --------------------
+[HttpGet("patients/{patientId}/appointments")]
+public async Task<IActionResult> GetAppointmentsForPatient(int patientId)
+{
+    var appointments = await _context.Appointments
+        .Where(a => a.PatientId == patientId)
+        .OrderByDescending(a => a.AppointmentDate)
+        .Select(a => new
+        {
+            appointmentId = a.AppointmentId,
+            appointmentDate = a.AppointmentDate,
+            status = a.Status,
+            notes = a.Notes
+        })
+        .ToListAsync();
+
+    return Ok(appointments);
+}
+
+// -------------------- GET PATIENTS SEEN BY DATE --------------------
+
+
+[HttpGet("{id}")]
+public async Task<ActionResult<NurseCreateDto>> GetNurseById(int id)
+{
+    var nurse = await _context.Nurses.FindAsync(id);
+    if (nurse == null) return NotFound();
+
+    return Ok(new NurseCreateDto
+    {
+        NurseId = nurse.NurseId,
+        Name = nurse.Name,
+        Email = nurse.Email,
+        PhoneNumber = nurse.PhoneNumber
+    });
+}
+        // ---------------- 8️⃣ COMPLETE APPOINTMENT ----------------
+        [HttpPut("appointments/{appointmentId}/complete")]
+        public async Task<IActionResult> CompleteAppointment(int appointmentId, [FromBody] AppointmentUpdateDto dto)
+        {
+            var appointment = await _context.Appointments.Include(a => a.Patient)
+                .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+            if (appointment == null) return NotFound("Appointment not found");
+
+            appointment.Status = "Completed";
+            appointment.Notes = dto.Notes ?? appointment.Notes;
+
+            await _context.SaveChangesAsync();
+
+            var exists = await _context.TreatmentRecords
+                .AnyAsync(tr => tr.PatientId == appointment.PatientId &&
+                                tr.AppointmentId == appointment.AppointmentId);
+
+            if (!exists)
             {
-                var client = _httpClientFactory.CreateClient();
-                client.BaseAddress = new Uri(_config["Infobip:BaseUrl"]);
-                client.DefaultRequestHeaders.Add("Authorization", $"App {_config["Infobip:ApiKey"]}");
-
-                var smsPayload = new
+                _context.TreatmentRecords.Add(new TreatmentRecord
                 {
-                    PhoneNumber = phoneNumber,
-                    Message = message,
-                    PatientId = patient.PatientId,
-                    SentBy = "Nurse",
-                    SenderId = dto.NurseId,
-                    SenderRole = "Nurse"
-                };
-
-                var content = new StringContent(
-                    JsonSerializer.Serialize(smsPayload),
-                    Encoding.UTF8,
-                    "application/json"
-                );
-
-                var response = await client.PostAsync("api/Sms/send", content);
-                var respBody = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
-                {
-                    // Save notification in DB
-                    var notification = new Smsnotification
-                    {
-                        PatientId = patient.PatientId,
-                        Message = message,
-                        SentAt = DateTime.UtcNow,
-                        SentBy = "Nurse",
-                        SenderId = dto.NurseId,
-                        SenderRole = "Nurse"
-                    };
-                    _context.Smsnotifications.Add(notification);
-                    await _context.SaveChangesAsync();
-
-                    return Ok(new { Message = "Appointment completed and SMS sent successfully." });
-                }
-                else
-                {
-                    return Ok(new { Message = "Appointment completed, but SMS failed.", Details = respBody });
-                }
+                    PatientId = appointment.PatientId,
+                    AppointmentId = appointment.AppointmentId,
+                    Diagnosis = dto.Notes ?? "Seen today (no diagnosis yet)",
+                    TreatmentDetails = "Auto-generated entry",
+                    TreatmentDate = appointment.AppointmentDate
+                });
+                await _context.SaveChangesAsync();
             }
-            catch (Exception ex)
-            {
-                return Ok(new { Message = "Appointment completed, but SMS failed.", Details = ex.Message });
-            }
+
+            return Ok("Appointment completed and treatment saved");
         }
     }
 }

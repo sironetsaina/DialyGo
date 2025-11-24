@@ -207,6 +207,31 @@ namespace backend.Controllers
 
             return Ok(new { Message = "Appointment cancelled successfully!" });
         }
+        // ===============================================
+// REAL-TIME NOTIFICATIONS USING SERVER-SENT EVENTS
+// ===============================================
+[HttpGet("notifications/stream/{patientId}")]
+public async Task GetNotificationStream(int patientId)
+{
+    Response.Headers.Add("Content-Type", "text/event-stream");
+
+    while (!HttpContext.RequestAborted.IsCancellationRequested)
+    {
+        var notifications = await _context.Smsnotifications
+            .Where(n => n.PatientId == patientId)
+            .OrderByDescending(n => n.SentAt)
+            .Select(n => n.Message)
+            .ToListAsync();
+
+        string json = System.Text.Json.JsonSerializer.Serialize(notifications);
+
+        await Response.WriteAsync($"data: {json}\n\n");
+        await Response.Body.FlushAsync();
+
+        await Task.Delay(5000); // Push every 5 seconds
+    }
+}
+
 
         // ================================
         // GET PATIENT NOTIFICATIONS

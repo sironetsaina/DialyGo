@@ -28,6 +28,7 @@ public partial class Appointment
     public virtual ICollection<TreatmentRecord> TreatmentRecords { get; set; } = new List<TreatmentRecord>();
 
     public virtual Truck? Truck { get; set; }
+
 }
 
 

@@ -1,40 +1,59 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./DoctorDashboard.css";
 
 function DoctorDashboard() {
   const [doctorId, setDoctorId] = useState("");
   const [confirmedDoctor, setConfirmedDoctor] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+
   const [patientId, setPatientId] = useState("");
   const [patient, setPatient] = useState(null);
   const [treatments, setTreatments] = useState([]);
   const [patientsToday, setPatientsToday] = useState([]);
-  const [newTreatment, setNewTreatment] = useState({ Diagnosis: "", TreatmentDetails: "" });
-  const [message, setMessage] = useState("");
+  const [patientsSeenOnDate, setPatientsSeenOnDate] = useState([]);
+  const [historyDate, setHistoryDate] = useState("");
+
+  const [newTreatment, setNewTreatment] = useState({
+    diagnosis: "",
+    treatmentDetails: ""
+  });
+
   const [editingTreatmentId, setEditingTreatmentId] = useState(null);
-  const [editingTreatment, setEditingTreatment] = useState({ Diagnosis: "", TreatmentDetails: "" });
+  const [editingTreatment, setEditingTreatment] = useState({
+    diagnosis: "",
+    treatmentDetails: ""
+  });
+
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const API_BASE = "http://localhost:5178/api";
 
+  // ---------------- CONFIRM DOCTOR ----------------
   const confirmDoctor = async () => {
+    if (!doctorId) return setMessage("Please enter Doctor ID");
+
     try {
+      setLoading(true);
       const res = await fetch(`${API_BASE}/Doctor/${doctorId}`);
-      if (!res.ok) throw new Error("Doctor not found");
+      if (!res.ok) throw new Error();
       const data = await res.json();
       setConfirmedDoctor(data);
-      fetchPatientsToday();
+      fetchPatientsSeenToday();
       setMessage("");
     } catch {
-      setMessage("Doctor ID not found. Please try again.");
+      setMessage("Doctor not found.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ---------------- FETCH PATIENT ----------------
   const fetchPatient = async () => {
-    if (!patientId) {
-      setMessage("⚠️ Please enter a Patient ID");
-      return;
-    }
+    if (!patientId) return setMessage("Enter patient ID");
+
     try {
+      setLoading(true);
       const res = await fetch(`${API_BASE}/Doctor/patients/${patientId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -43,79 +62,102 @@ function DoctorDashboard() {
       setMessage("");
     } catch {
       setMessage("Patient not found.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ---------------- FETCH TREATMENTS ----------------
   const fetchTreatments = async (id) => {
-    const res = await fetch(`${API_BASE}/Doctor/patients/${id}/treatments`);
-    if (res.ok) setTreatments(await res.json());
-  };
-
-  const addTreatment = async () => {
-    if (!newTreatment.Diagnosis || !newTreatment.TreatmentDetails) {
-      setMessage("Please fill in both Diagnosis and Treatment Details.");
-      return;
-    }
     try {
-      const res = await fetch(`${API_BASE}/Doctor/patients/${patientId}/treatment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          diagnosis: newTreatment.Diagnosis,
-          treatmentDetails: newTreatment.TreatmentDetails,
-        }),
-      });
+      const res = await fetch(`${API_BASE}/Doctor/patients/${id}/treatments`);
+      if (res.ok) {
+        const data = await res.json();
+        setTreatments(data);
+      }
+    } catch {}
+  };
+
+  // ---------------- FETCH PATIENTS SEEN TODAY ----------------
+  const fetchPatientsSeenToday = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      setHistoryDate(today);
+
+      const res = await fetch(`${API_BASE}/Doctor/patients-seen-today`);
       if (!res.ok) throw new Error();
-      setMessage("Treatment added successfully!");
-      setNewTreatment({ Diagnosis: "", TreatmentDetails: "" });
-      fetchTreatments(patientId);
+      const data = await res.json();
+      setPatientsToday(data || []);
     } catch {
-      setMessage("Failed to add treatment.");
+      setPatientsToday([]);
+      setMessage("⚠️ Failed to load patients seen today");
     }
   };
 
-  const updateTreatment = async (treatmentId) => {
-    if (!editingTreatment.Diagnosis || !editingTreatment.TreatmentDetails) {
-      setMessage("Please fill in both Diagnosis and Treatment Details.");
-      return;
+  // ---------------- FETCH PATIENTS SEEN ON DATE ----------------
+  const fetchSeenOnDate = async (date) => {
+    try {
+      const res = await fetch(`${API_BASE}/Doctor/patients-seen?date=${date}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setPatientsSeenOnDate(data || []);
+      setHistoryDate(date);
+      setMessage("");
+    } catch {
+      setPatientsSeenOnDate([]);
+      setMessage("⚠️ Failed to load history for the date");
     }
+  };
+
+  // ---------------- ADD TREATMENT ----------------
+  const addTreatment = async () => {
+    if (!newTreatment.diagnosis || !newTreatment.treatmentDetails) {
+      return setMessage("Diagnosis and treatment are required.");
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/Doctor/patients/${patientId}/update`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTreatment)
+      });
+      const result = await res.text();
+      if (!res.ok) throw new Error(result);
+
+      setMessage("✅ Treatment and diagnosis saved.");
+      setNewTreatment({ diagnosis: "", treatmentDetails: "" });
+      fetchTreatments(patientId);
+      fetchPatientsSeenToday();
+    } catch (err) {
+      setMessage("❌ Failed to save treatment.");
+      console.error(err);
+    }
+  };
+
+  // ---------------- UPDATE EXISTING TREATMENT ----------------
+  const updateTreatment = async (treatmentId) => {
+    if (!editingTreatment.diagnosis || !editingTreatment.treatmentDetails) {
+      return setMessage("All fields are required.");
+    }
+
     try {
       const res = await fetch(`${API_BASE}/Doctor/treatment/${treatmentId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          diagnosis: editingTreatment.Diagnosis,
-          treatmentDetails: editingTreatment.TreatmentDetails,
-        }),
+        body: JSON.stringify(editingTreatment)
       });
-      if (!res.ok) throw new Error();
-      setMessage("Treatment updated successfully!");
+      const result = await res.text();
+      if (!res.ok) throw new Error(result);
+
       setEditingTreatmentId(null);
       fetchTreatments(patientId);
+      setMessage("✅ Treatment updated.");
     } catch {
-      setMessage("Failed to update treatment.");
+      setMessage("❌ Failed to update treatment.");
     }
   };
 
-  const updateDiagnosis = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/Doctor/patients/${patientId}/diagnosis`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patient.medicalHistory),
-      });
-      if (!res.ok) throw new Error();
-      setMessage("Diagnosis updated successfully!");
-    } catch {
-      setMessage("Failed to update diagnosis.");
-    }
-  };
-
-  const fetchPatientsToday = async () => {
-    const res = await fetch(`${API_BASE}/Doctor/patients-seen-today`);
-    if (res.ok) setPatientsToday(await res.json());
-  };
-
+  // ---------------- BACK ----------------
   const backToSearch = () => {
     setPatient(null);
     setPatientId("");
@@ -123,14 +165,39 @@ function DoctorDashboard() {
     setMessage("");
   };
 
+  // ---------------- LOGOUT ----------------
   const logout = () => {
     setConfirmedDoctor(null);
-    setActiveTab("overview");
+    setDoctorId("");
     setPatient(null);
-    setPatientId("");
-    setTreatments([]);
-    setPatientsToday([]);
-    setMessage("");
+    setActiveTab("overview");
+  };
+
+  // ---------------- HELPER TABLE COMPONENT ----------------
+  const PatientsTable = ({ data }) => {
+    if (data.length === 0) return <p>No patients found</p>;
+    return (
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Diagnosis</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((p, i) => (
+            <tr key={i}>
+              <td>{p.patientId}</td>
+              <td>{p.name}</td>
+              <td>{p.diagnosis}</td>
+              <td>{new Date(p.treatmentDate).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
   };
 
   return (
@@ -138,9 +205,9 @@ function DoctorDashboard() {
       <aside className="sidebar">
         <h2>DialyGo Doctor</h2>
         <ul>
-          <li className={activeTab === "overview" ? "active" : ""} onClick={() => setActiveTab("overview")}>Overview</li>
-          <li className={activeTab === "patients" ? "active" : ""} onClick={() => setActiveTab("patients")}>Patient Records</li>
-          <li className={activeTab === "seen" ? "active" : ""} onClick={() => setActiveTab("seen")}>Patients Seen Today</li>
+          <li onClick={() => setActiveTab("overview")}>Overview</li>
+          <li onClick={() => setActiveTab("patients")}>Patient Records</li>
+          <li onClick={() => setActiveTab("seen")}>Patients Seen</li>
           {confirmedDoctor && <li onClick={logout}>Logout</li>}
         </ul>
       </aside>
@@ -148,94 +215,81 @@ function DoctorDashboard() {
       <main className="main-content">
         {!confirmedDoctor ? (
           <div className="confirm-doctor">
-            <h2>Confirm Doctor ID</h2>
+            <h2>Doctor Login</h2>
             <input
               type="number"
-              placeholder="Enter your Doctor ID"
+              placeholder="Enter Doctor ID"
               value={doctorId}
               onChange={(e) => setDoctorId(e.target.value)}
             />
-            <button onClick={confirmDoctor}>Confirm</button>
+            <button onClick={confirmDoctor}>
+              {loading ? "Loading..." : "Login"}
+            </button>
             {message && <p className="alert">{message}</p>}
           </div>
         ) : (
           <>
-            <header className="header">
-              <h1>Welcome, Dr. {confirmedDoctor.name}</h1>
-              <p>Specialization: {confirmedDoctor.specialization}</p>
-              <p>Email: {confirmedDoctor.email} | Phone: {confirmedDoctor.phoneNumber}</p>
+            <header className="doctor-header">
+              <h2>Welcome, Dr. {confirmedDoctor.name}</h2>
+              <p>{confirmedDoctor.specialization}</p>
             </header>
 
             {message && <div className="alert">{message}</div>}
 
-            {/* Overview */}
+            {/* OVERVIEW */}
             {activeTab === "overview" && (
-              <section className="overview">
+              <div className="overview">
                 <div className="card">
                   <h3>Doctor Profile</h3>
-                  <p><b>Name:</b> {confirmedDoctor.name}</p>
-                  <p><b>Specialization:</b> {confirmedDoctor.specialization}</p>
                   <p><b>Email:</b> {confirmedDoctor.email}</p>
                   <p><b>Phone:</b> {confirmedDoctor.phoneNumber}</p>
                 </div>
+
                 <div className="card">
                   <h3>Patients Seen Today</h3>
-                  <p>{patientsToday.length}</p>
+                  <h1>{patientsToday.length}</h1>
                 </div>
-              </section>
+              </div>
             )}
 
-            {/* Patients */}
+            {/* PATIENT RECORDS */}
             {activeTab === "patients" && (
-              <section className="patients-section">
+              <div className="patients-section">
                 {!patient ? (
-                  <>
-                    <h2>Search Patient</h2>
-                    <div className="search-box">
-                      <input
-                        type="number"
-                        placeholder="Enter Patient ID"
-                        value={patientId}
-                        onChange={(e) => setPatientId(e.target.value)}
-                      />
-                      <button onClick={fetchPatient}>Search</button>
-                    </div>
-                  </>
+                  <div className="search-box">
+                    <h3>Search Patient</h3>
+                    <input
+                      type="number"
+                      value={patientId}
+                      onChange={(e) => setPatientId(e.target.value)}
+                      placeholder="Patient ID"
+                    />
+                    <button onClick={fetchPatient}>Search</button>
+                  </div>
                 ) : (
                   <>
-                    <button className="back-button" onClick={backToSearch}>← Back to Search</button>
+                    <button className="back-button" onClick={backToSearch}>← Back</button>
 
-                    <div className="patient-details card">
+                    <div className="card patient-details">
                       <h3>Patient Details</h3>
-                      <form className="patient-form">
-                        <label><b>Name:</b> {patient.name}</label>
-                        <label><b>Gender:</b> {patient.gender}</label>
-                        <label><b>Date of Birth:</b> {new Date(patient.dateOfBirth).toLocaleDateString()}</label>
-                        <label><b>Phone:</b> {patient.phoneNumber}</label>
-                        <label><b>Email:</b> {patient.email}</label>
-                        <label><b>Address:</b> {patient.address}</label>
-                        <label>
-                          <b>Diagnosis:</b>
-                          <input
-                            type="text"
-                            value={patient.medicalHistory || ""}
-                            onChange={(e) => setPatient({ ...patient, medicalHistory: e.target.value })}
-                          />
-                        </label>
-                        <button type="button" onClick={updateDiagnosis}>Update Diagnosis</button>
-                      </form>
+                      <p><b>Name:</b> {patient.name}</p>
+                      <p><b>Gender:</b> {patient.gender}</p>
+                      <p><b>DOB:</b> {new Date(patient.dateOfBirth).toLocaleDateString()}</p>
+                      <p><b>Phone:</b> {patient.phoneNumber}</p>
                     </div>
 
-                    {treatments.length > 0 && (
-                      <div className="treatments card">
-                        <h3>Treatment History</h3>
+                    <div className="card">
+                      <h3>Treatment History</h3>
+                      {treatments.length === 0 ? (
+                        <p>No treatments yet</p>
+                      ) : (
                         <table>
                           <thead>
                             <tr>
                               <th>Date</th>
                               <th>Diagnosis</th>
-                              <th>Details</th>
-                              <th>Actions</th>
+                              <th>Treatment</th>
+                              <th>Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -245,27 +299,22 @@ function DoctorDashboard() {
                                 <td>
                                   {editingTreatmentId === t.treatmentId ? (
                                     <input
-                                      type="text"
-                                      value={editingTreatment.Diagnosis}
+                                      value={editingTreatment.diagnosis}
                                       onChange={(e) =>
-                                        setEditingTreatment({ ...editingTreatment, Diagnosis: e.target.value })
+                                        setEditingTreatment({ ...editingTreatment, diagnosis: e.target.value })
                                       }
                                     />
-                                  ) : (
-                                    t.diagnosis
-                                  )}
+                                  ) : t.diagnosis}
                                 </td>
                                 <td>
                                   {editingTreatmentId === t.treatmentId ? (
                                     <textarea
-                                      value={editingTreatment.TreatmentDetails}
+                                      value={editingTreatment.treatmentDetails}
                                       onChange={(e) =>
-                                        setEditingTreatment({ ...editingTreatment, TreatmentDetails: e.target.value })
+                                        setEditingTreatment({ ...editingTreatment, treatmentDetails: e.target.value })
                                       }
                                     />
-                                  ) : (
-                                    t.treatmentDetails
-                                  )}
+                                  ) : t.treatmentDetails}
                                 </td>
                                 <td>
                                   {editingTreatmentId === t.treatmentId ? (
@@ -274,86 +323,50 @@ function DoctorDashboard() {
                                       <button onClick={() => setEditingTreatmentId(null)}>Cancel</button>
                                     </>
                                   ) : (
-                                    <button
-                                      onClick={() => {
-                                        setEditingTreatmentId(t.treatmentId);
-                                        setEditingTreatment({ Diagnosis: t.diagnosis, TreatmentDetails: t.treatmentDetails });
-                                      }}
-                                    >
-                                      Edit
-                                    </button>
+                                    <button onClick={() => {
+                                      setEditingTreatmentId(t.treatmentId);
+                                      setEditingTreatment({ diagnosis: t.diagnosis, treatmentDetails: t.treatmentDetails });
+                                    }}>Edit</button>
                                   )}
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
-                    <div className="add-treatment card">
-                      <h3>Add Treatment</h3>
-                      <form className="add-treatment-form">
-                        <label>
-                          Diagnosis:
-                          <input
-                            type="text"
-                            placeholder="Diagnosis"
-                            value={newTreatment.Diagnosis}
-                            onChange={(e) => setNewTreatment({ ...newTreatment, Diagnosis: e.target.value })}
-                          />
-                        </label>
-                        <label>
-                          Treatment Details:
-                          <textarea
-                            placeholder="Treatment Details"
-                            value={newTreatment.TreatmentDetails}
-                            onChange={(e) => setNewTreatment({ ...newTreatment, TreatmentDetails: e.target.value })}
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={addTreatment}
-                          disabled={!newTreatment.Diagnosis || !newTreatment.TreatmentDetails}
-                        >
-                          Add Treatment
-                        </button>
-                      </form>
+                    <div className="card add-treatment">
+                      <h3>Add New Treatment</h3>
+                      <input
+                        type="text"
+                        placeholder="Diagnosis"
+                        value={newTreatment.diagnosis}
+                        onChange={(e) => setNewTreatment({ ...newTreatment, diagnosis: e.target.value })}
+                      />
+                      <textarea
+                        placeholder="Treatment Details"
+                        value={newTreatment.treatmentDetails}
+                        onChange={(e) => setNewTreatment({ ...newTreatment, treatmentDetails: e.target.value })}
+                      />
+                      <button onClick={addTreatment}>Add Treatment</button>
                     </div>
                   </>
                 )}
-              </section>
+              </div>
             )}
 
-            {/* Patients Seen Today */}
+            {/* PATIENTS SEEN */}
             {activeTab === "seen" && (
-              <section className="card">
-                <h2>Patients Seen Today</h2>
-                {patientsToday.length > 0 ? (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Diagnosis</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {patientsToday.map((p, i) => (
-                        <tr key={i}>
-                          <td>{p.patientId}</td>
-                          <td>{p.name}</td>
-                          <td>{p.diagnosis}</td>
-                          <td>{new Date(p.treatmentDate).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p>No patients seen today.</p>
-                )}
-              </section>
+              <div className="card">
+                <h3>Patients Seen</h3>
+                <input
+                  type="date"
+                  value={historyDate}
+                  onChange={(e) => fetchSeenOnDate(e.target.value)}
+                />
+                <PatientsTable data={historyDate === new Date().toISOString().split("T")[0] ? patientsToday : patientsSeenOnDate} />
+              </div>
             )}
           </>
         )}

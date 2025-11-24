@@ -16,6 +16,7 @@ namespace backend.Controllers
             _context = context;
         }
 
+        // -------------------- GET DOCTOR --------------------
         [HttpGet("{doctorId}")]
         public async Task<IActionResult> GetDoctor(int doctorId)
         {
@@ -32,6 +33,7 @@ namespace backend.Controllers
             });
         }
 
+        // -------------------- GET PATIENT --------------------
         [HttpGet("patients/{patientId}")]
         public async Task<IActionResult> GetPatient(int patientId)
         {
@@ -51,6 +53,7 @@ namespace backend.Controllers
             });
         }
 
+        // -------------------- GET PATIENT TREATMENTS --------------------
         [HttpGet("patients/{patientId}/treatments")]
         public async Task<IActionResult> GetPatientTreatmentSummary(int patientId)
         {
@@ -68,26 +71,20 @@ namespace backend.Controllers
             return Ok(treatments);
         }
 
-        /// <summary>
-        /// Update patient diagnosis and add treatment record in one request.
-        /// Automatically links treatment to the patient's latest appointment if exists.
-        /// </summary>
+        // -------------------- UPDATE PATIENT DIAGNOSIS + ADD TREATMENT --------------------
         [HttpPut("patients/{patientId}/update")]
         public async Task<IActionResult> UpdatePatientDiagnosisAndTreatment(int patientId, [FromBody] TreatmentSummaryDto dto)
         {
             var patient = await _context.Patients.FindAsync(patientId);
             if (patient == null) return NotFound("Patient not found.");
 
-            // Update diagnosis on patient
             if (!string.IsNullOrWhiteSpace(dto.Diagnosis))
                 patient.MedicalHistory = dto.Diagnosis;
 
             _context.Entry(patient).State = EntityState.Modified;
 
-            // Add treatment if TreatmentDetails provided
             if (!string.IsNullOrWhiteSpace(dto.TreatmentDetails))
             {
-                // Get the latest appointment for patient
                 var latestAppointment = await _context.Appointments
                     .Where(a => a.PatientId == patientId)
                     .OrderByDescending(a => a.AppointmentDate)
@@ -99,7 +96,7 @@ namespace backend.Controllers
                 var treatment = new TreatmentRecord
                 {
                     PatientId = patientId,
-                    AppointmentId = latestAppointment.AppointmentId, // satisfy FK constraint
+                    AppointmentId = latestAppointment.AppointmentId,
                     Diagnosis = dto.Diagnosis ?? patient.MedicalHistory,
                     TreatmentDetails = dto.TreatmentDetails,
                     TreatmentDate = DateTime.UtcNow
@@ -111,6 +108,7 @@ namespace backend.Controllers
             return Ok("Patient diagnosis and treatment updated successfully.");
         }
 
+        // -------------------- UPDATE EXISTING TREATMENT --------------------
         [HttpPut("treatment/{treatmentId}")]
         public async Task<IActionResult> UpdateTreatmentDetails(int treatmentId, [FromBody] TreatmentSummaryDto dto)
         {
@@ -127,6 +125,7 @@ namespace backend.Controllers
             return Ok("Treatment record updated successfully.");
         }
 
+        // -------------------- PATIENTS SEEN TODAY --------------------
         [HttpGet("patients-seen-today")]
         public async Task<IActionResult> GetPatientsSeenToday()
         {
@@ -134,6 +133,28 @@ namespace backend.Controllers
 
             var patients = await _context.TreatmentRecords
                 .Where(t => t.TreatmentDate.HasValue && t.TreatmentDate.Value.Date == today)
+                .Include(t => t.Patient)
+                .Select(t => new
+                {
+                    t.Patient.PatientId,
+                    t.Patient.Name,
+                    t.Diagnosis,
+                    t.TreatmentDate
+                })
+                .ToListAsync();
+
+            return Ok(patients);
+        }
+
+        // -------------------- PATIENTS SEEN ON SPECIFIC DATE --------------------
+        [HttpGet("patients-seen")]
+        public async Task<IActionResult> GetPatientsSeenOnDate([FromQuery] string date)
+        {
+            if (!DateTime.TryParse(date, out DateTime parsedDate))
+                return BadRequest("Invalid date format.");
+
+            var patients = await _context.TreatmentRecords
+                .Where(t => t.TreatmentDate.HasValue && t.TreatmentDate.Value.Date == parsedDate.Date)
                 .Include(t => t.Patient)
                 .Select(t => new
                 {
