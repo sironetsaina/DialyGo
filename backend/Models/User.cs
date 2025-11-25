@@ -15,7 +15,7 @@ public partial class User
 
     public int RelatedId { get; set; }
 
-    public bool IsActive { get; set; }
+    public bool? IsActive { get; set; }
 
     public virtual ICollection<LoginSession> LoginSessions { get; set; } = new List<LoginSession>();
 

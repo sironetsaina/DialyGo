@@ -19,9 +19,9 @@ namespace backend.Controllers
             _smsService = smsService;
         }
 
-        // ================================
+        // ============================================================
         // GET PATIENT DETAILS
-        // ================================
+        // ============================================================
         [HttpGet("{patientId}")]
         public async Task<ActionResult<PatientDetailDto>> GetPatient(int patientId)
         {
@@ -37,26 +37,34 @@ namespace backend.Controllers
                     Email = p.Email,
                     Address = p.Address,
                     MedicalHistory = p.MedicalHistory,
-                    AppointmentID = p.Appointments.Select(a => new AppointmentDto
-                    {
-                        AppointmentId = a.AppointmentId,
-                        AppointmentDate = a.AppointmentDate,
-                        Status = a.Status,
-                        Notes = a.Notes,
-                        TruckPlate = a.Truck != null ? a.Truck.LicensePlate : null,
-                        TruckLocation = a.Truck != null ? a.Truck.CurrentLocation : null
-                    }).ToList(),
+
+                    AppointmentID = p.Appointments
+                        .OrderBy(a => a.AppointmentId)   // numbering
+                        .Select(a => new AppointmentDto
+                        {
+                            AppointmentId = a.AppointmentId,
+                            AppointmentNumber = a.AppointmentId,   // <-- numbered like 1,2,3,4...
+                            AppointmentDate = a.AppointmentDate,
+                            Status = a.Status,
+                            Notes = a.Notes,
+                            TruckId = a.TruckId,
+                            TruckPlate = a.Truck != null ? a.Truck.LicensePlate : null,
+                            TruckLocation = a.Truck != null ? a.Truck.CurrentLocation : null
+                        }).ToList(),
+
                     TreatmentRecords = p.TreatmentRecords
                 })
                 .FirstOrDefaultAsync();
 
-            if (patient == null) return NotFound("❌ Patient not found.");
+            if (patient == null)
+                return NotFound("❌ Patient not found.");
+
             return Ok(patient);
         }
 
-        // ================================
-        // GET LIST OF TRUCKS
-        // ================================
+        // ============================================================
+        // GET TRUCKS
+        // ============================================================
         [HttpGet("trucks")]
         public async Task<ActionResult<IEnumerable<TruckDto>>> GetTrucks()
         {
@@ -73,9 +81,9 @@ namespace backend.Controllers
             return Ok(trucks);
         }
 
-        // ================================
-        // GET AVAILABLE SLOTS
-        // ================================
+        // ============================================================
+        // GET AVAILABLE SLOTS FOR TRUCK
+        // ============================================================
         [HttpGet("appointments/available/{truckId}/{date}")]
         public async Task<ActionResult<IEnumerable<string>>> GetAvailableSlots(int truckId, string date)
         {
@@ -109,9 +117,9 @@ namespace backend.Controllers
             return Ok(slots);
         }
 
-        // ================================
+        // ============================================================
         // BOOK APPOINTMENT
-        // ================================
+        // ============================================================
         [HttpPost("appointments")]
         public async Task<ActionResult> BookAppointment([FromBody] AppointmentCreateDto dto)
         {
@@ -122,132 +130,181 @@ namespace backend.Controllers
                 return BadRequest("Invalid patient or truck.");
 
             var dateOnly = dto.AppointmentDate.Date;
-            var exists = await _context.Appointments
-                .AnyAsync(a => a.PatientId == dto.PatientId && a.AppointmentDate.Date == dateOnly && a.Status != "Cancelled");
+
+            var exists = await _context.Appointments.AnyAsync(a =>
+                a.PatientId == dto.PatientId &&
+                a.AppointmentDate.Date == dateOnly &&
+                a.Status != "Cancelled");
 
             if (exists)
                 return Conflict("Patient already has an appointment that day.");
 
-            var appointment = new Appointment
+            var newAppointment = new Appointment
             {
                 PatientId = dto.PatientId,
                 TruckId = dto.TruckId,
                 AppointmentDate = dto.AppointmentDate,
                 Status = "Scheduled"
             };
-            _context.Appointments.Add(appointment);
+
+            _context.Appointments.Add(newAppointment);
             await _context.SaveChangesAsync();
 
-            // ---------------- Create Notification ----------------
-            var notifMessage = $"Your appointment for {dto.AppointmentDate:dddd, MMM dd yyyy HH:mm} on truck {truck.LicensePlate} has been booked successfully.";
-            var notification = new Smsnotification
+            // ========== SEND NOTIFICATION ==========
+            var message =
+                $"Your appointment for {dto.AppointmentDate:dddd, MMM dd yyyy HH:mm} on truck {truck.LicensePlate} has been booked.";
+
+            _context.Smsnotifications.Add(new Smsnotification
             {
                 PatientId = patient.PatientId,
-                Message = notifMessage,
+                Message = message,
                 SentAt = DateTime.UtcNow,
                 SentBy = "System",
                 SenderId = 0,
                 SenderRole = "Sys"
-            };
-            _context.Smsnotifications.Add(notification);
+            });
+
             await _context.SaveChangesAsync();
 
             try
             {
-                await _smsService.SendSms(patient.PhoneNumber, notifMessage);
+                await _smsService.SendSms(patient.PhoneNumber, message);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"SMS sending failed: {ex.Message}");
-            }
+            catch { }
 
-            return Ok(new { Message = notifMessage });
+            return Ok(new { Message = message });
         }
 
-        // ================================
-        // CANCEL APPOINTMENT
-        // ================================
+        // ============================================================
+        // CANCEL APPOINTMENT — except completed/missed
+        // ============================================================
         [HttpPost("appointments/cancel/{appointmentId}")]
         public async Task<ActionResult> CancelAppointment(int appointmentId)
         {
-            var appointment = await _context.Appointments.FindAsync(appointmentId);
-            if (appointment == null) return NotFound("Appointment not found.");
-            if (appointment.Status == "Cancelled") return BadRequest("Appointment already cancelled.");
+            var appt = await _context.Appointments.FindAsync(appointmentId);
+            if (appt == null) return NotFound("Appointment not found.");
 
-            appointment.Status = "Cancelled";
+            if (appt.Status == "Completed")
+                return BadRequest("Completed appointments cannot be cancelled.");
+
+            if (appt.Status == "Missed") 
+                return BadRequest("Missed appointments cannot be cancelled.");
+
+            if (appt.Status == "Cancelled")
+                return BadRequest("This appointment is already cancelled.");
+
+            appt.Status = "Cancelled";
             await _context.SaveChangesAsync();
 
-            var patient = await _context.Patients.FindAsync(appointment.PatientId);
-            var truck = await _context.Trucks.FindAsync(appointment.TruckId);
+            var patient = await _context.Patients.FindAsync(appt.PatientId);
 
-            if (patient != null && truck != null)
+            if (patient != null)
             {
-                var notifMessage = $"Hello {patient.Name}, your appointment on {appointment.AppointmentDate:dddd, MMM dd yyyy HH:mm} has been cancelled.";
-                var notification = new Smsnotification
+                string msg =
+                    $"Hello {patient.Name}, your appointment on {appt.AppointmentDate:dddd, MMM dd yyyy HH:mm} has been cancelled.";
+
+                _context.Smsnotifications.Add(new Smsnotification
                 {
                     PatientId = patient.PatientId,
-                    Message = notifMessage,
+                    Message = msg,
                     SentAt = DateTime.UtcNow,
                     SentBy = "System",
                     SenderId = 0,
                     SenderRole = "Sys"
-                };
-                _context.Smsnotifications.Add(notification);
+                });
+
                 await _context.SaveChangesAsync();
 
-                try
-                {
-                    await _smsService.SendSms(patient.PhoneNumber, notifMessage);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"SMS sending failed: {ex.Message}");
-                }
+                try { await _smsService.SendSms(patient.PhoneNumber, msg); }
+                catch { }
             }
 
-            return Ok(new { Message = "Appointment cancelled successfully!" });
+            return Ok(new { Message = "Appointment cancelled." });
         }
-        // ===============================================
-// REAL-TIME NOTIFICATIONS USING SERVER-SENT EVENTS
-// ===============================================
-[HttpGet("notifications/stream/{patientId}")]
-public async Task GetNotificationStream(int patientId)
-{
-    Response.Headers.Add("Content-Type", "text/event-stream");
 
-    while (!HttpContext.RequestAborted.IsCancellationRequested)
-    {
-        var notifications = await _context.Smsnotifications
-            .Where(n => n.PatientId == patientId)
-            .OrderByDescending(n => n.SentAt)
-            .Select(n => n.Message)
-            .ToListAsync();
+        // ============================================================
+        // MANUAL MISSED CHECK (still useful for testing)
+        // ============================================================
+        [HttpPost("appointments/check-missed")]
+        public async Task<ActionResult> CheckMissedAppointments()
+        {
+            var now = DateTime.UtcNow;
 
-        string json = System.Text.Json.JsonSerializer.Serialize(notifications);
+            var missed = await _context.Appointments
+                .Where(a => a.Status == "Scheduled" && a.AppointmentDate < now)
+                .ToListAsync();
 
-        await Response.WriteAsync($"data: {json}\n\n");
-        await Response.Body.FlushAsync();
+            if (!missed.Any())
+                return Ok(new { Message = "No missed appointments." });
 
-        await Task.Delay(5000); // Push every 5 seconds
-    }
-}
+            foreach (var appt in missed)
+            {
+                appt.Status = "Missed";
 
+                var patient = await _context.Patients.FindAsync(appt.PatientId);
+                if (patient == null) continue;
 
-        // ================================
-        // GET PATIENT NOTIFICATIONS
-        // ================================
+                string text =
+                    $"You missed your appointment on {appt.AppointmentDate:dddd, MMM dd yyyy HH:mm}. Please rebook.";
+
+                _context.Smsnotifications.Add(new Smsnotification
+                {
+                    PatientId = patient.PatientId,
+                    Message = text,
+                    SentAt = DateTime.UtcNow,
+                    SentBy = "System",
+                    SenderId = 0,
+                    SenderRole = "Sys"
+                });
+
+                try { await _smsService.SendSms(patient.PhoneNumber, text); }
+                catch { }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Message = "Missed appointments processed." });
+        }
+
+        // ============================================================
+        // SSE REAL-TIME NOTIFICATION STREAM
+        // ============================================================
+        [HttpGet("notifications/stream/{patientId}")]
+        public async Task GetNotificationStream(int patientId)
+        {
+            Response.Headers.Add("Content-Type", "text/event-stream");
+
+            while (!HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                var messages = await _context.Smsnotifications
+                    .Where(n => n.PatientId == patientId)
+                    .OrderByDescending(n => n.SentAt)
+                    .Select(n => n.Message)
+                    .ToListAsync();
+
+                string json = System.Text.Json.JsonSerializer.Serialize(messages);
+
+                await Response.WriteAsync($"data: {json}\n\n");
+                await Response.Body.FlushAsync();
+
+                await Task.Delay(5000);
+            }
+        }
+
+        // ============================================================
+        // GET PATIENT NOTIFICATION LIST
+        // ============================================================
         [HttpGet("notifications/{patientId}")]
         public async Task<ActionResult<IEnumerable<Smsnotification>>> GetNotifications(int patientId)
         {
             var exists = await _context.Patients.AnyAsync(p => p.PatientId == patientId);
-            if (!exists) return NotFound("❌ Patient not found.");
+            if (!exists) return NotFound("Patient not found.");
 
-            var notifications = await _context.Smsnotifications
+            var messages = await _context.Smsnotifications
                 .Where(n => n.PatientId == patientId)
                 .OrderByDescending(n => n.SentAt)
                 .ToListAsync();
 
-            return Ok(notifications);
+            return Ok(messages);
         }
     }
 }

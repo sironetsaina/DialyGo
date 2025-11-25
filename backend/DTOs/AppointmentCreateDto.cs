@@ -15,6 +15,8 @@ namespace backend.DTOs
         public string? Notes { get; set; }
         public string? TruckPlate { get; set; }
         public string? TruckLocation { get; internal set; }
+        public int? TruckId { get; internal set; }
+        public int AppointmentNumber { get; internal set; }
     }
 
     public class PatientDetailDto

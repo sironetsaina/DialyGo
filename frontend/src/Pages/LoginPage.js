@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import "./LoginPage.css"; 
+import { useNavigate, Link } from "react-router-dom";
+import "./LoginPage.css";
 
 function LoginPage() {
   const [username, setUsername] = useState("");
@@ -17,8 +17,8 @@ function LoginPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: username,   // ✅ lowercase keys to match backend
-          password: password,
+          username,
+          password,
         }),
       });
 
@@ -57,7 +57,12 @@ function LoginPage() {
   return (
     <div className="login-container">
       <div className="login-card">
+
+        {/* ✅ BACK BUTTON - TOP LEFT */}
+        <Link to="/" className="back-btn top-left">← Back to Home</Link>
+
         <h2>DialyGo Login</h2>
+
         <form onSubmit={handleLogin}>
           <div className="form-group">
             <label>Username:</label>

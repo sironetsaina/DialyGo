@@ -13,9 +13,9 @@ export default function HomePage() {
       <section className="home-about">
         <h2>About Us</h2>
         <p>
-          DialyGo is a community-driven health platform designed to make dialysis
-          accessible anywhere. We connect patients, doctors, and mobile dialysis
-          units for efficient care scheduling and coordination.
+         DialyGo is an innovative healthcare coordination platform designed to bring dialysis services closer to those who need them. 
+         By streamlining communication, scheduling, and service access, DialyGo enhances how patients and care providers connect. 
+         Our technology ensures smooth, timely interactions while supporting efficient mobile service delivery helping create a more responsive and accessible healthcare experience.
         </p>
       </section>
 

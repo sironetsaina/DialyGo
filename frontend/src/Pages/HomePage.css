@@ -13,11 +13,14 @@
   text-align: center;
   padding: 4rem 2rem;
   background: linear-gradient(135deg, #2563eb, #1e40af);
-  color: #ffffff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  color: #e0dddd;
+  box-shadow: 0 4px 10px rgba(28, 27, 27, 0.1);
   border-bottom-left-radius: 40px;
   border-bottom-right-radius: 40px;
   animation: fadeInDown 1.2s ease-out;
+}
+.home-header p {
+  color: #ffffff !important;
 }
 
 .home-header h1 {
@@ -41,7 +44,7 @@
   margin: 2rem auto;
   background: #ffffff;
   border-radius: 20px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 5px 15px rgba(27, 26, 26, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   animation: fadeIn 1.5s ease-in;
 }
@@ -59,7 +62,7 @@
 
 .home-about p {
   font-size: 1.1rem;
-  color: #374151;
+  color: #28313f;
   line-height: 1.8;
 }
 

@@ -13,17 +13,10 @@ builder.Services.AddHttpClient();
 builder.Services.AddDbContext<MobileDialysisDbContext>(options =>
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        new MySqlServerVersion(new Version(8, 0, 36)),
-        mysqlOptions =>
-        {
-            mysqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 5,
-                maxRetryDelay: TimeSpan.FromSeconds(10),
-                errorNumbersToAdd: null
-            );
-        }
+        new MySqlServerVersion(new Version(8, 0, 36))
     )
 );
+
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<SmsService>();
 //builder.Services.AddScoped<AppointmentReminderService>();
@@ -59,7 +52,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseAuthorization();
 
 // Apply CORS

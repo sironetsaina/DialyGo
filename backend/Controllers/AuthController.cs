@@ -14,47 +14,51 @@ namespace backend.Controllers
         {
             _context = context;
         }
+[HttpPost("login")]
+public async Task<IActionResult> Login([FromBody] LoginRequestDTO login)
+{
+    if (string.IsNullOrWhiteSpace(login.Username) || string.IsNullOrWhiteSpace(login.Password))
+        return BadRequest(new { message = "Username and password are required." });
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequestDTO login)
-        {
-            if (string.IsNullOrWhiteSpace(login.Username) || string.IsNullOrWhiteSpace(login.Password))
-                return BadRequest(new { message = "Username and password are required." });
+    var username = login.Username.Trim();
+    var password = login.Password.Trim();
 
-            // Find the user by Username
-            var user = await _context.Users
-                .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Username == login.Username);
+    var user = await _context.Users
+        .Include(u => u.Role)
+        .FirstOrDefaultAsync(u => u.Username == username);
 
-            if (user == null)
-                return Unauthorized(new { message = "Username not found." });
+    if (user == null)
+        return Unauthorized(new { message = "Username not found." });
 
-            // Check password (plain text for now, replace with hash comparison if needed)
-            if (user.Password != login.Password)
-                return Unauthorized(new { message = "Incorrect password." });
+    if (user.IsActive != true)
+        return Unauthorized(new { message = "Account is inactive. Contact admin." });
 
-            // If the user is a patient, get their full name
-            string? patientName = null;
-            if (user.RoleId == 4) // assuming 4 = Patient role
-            {
-                var patient = await _context.Patients.FindAsync(user.RelatedId);
-                patientName = patient?.Name;
-            }
+    if (user.Password.Trim() != password)
+        return Unauthorized(new { message = "Incorrect password." });
 
-            return Ok(new
-            {
-                userId = user.UserId,
-                username = user.Username,
-                role = user.Role?.RoleName ?? "Unknown",
-                relatedId = user.RelatedId,
-                fullName = patientName
-            });
-        }
+    string? patientName = null;
+
+    if (user.Role?.RoleName == "Patient")
+    {
+        var patient = await _context.Patients.FindAsync(user.RelatedId);
+        patientName = patient?.Name;
     }
+
+    return Ok(new
+    {
+        userId = user.UserId,
+        username = user.Username,
+        role = user.Role?.RoleName ?? "Unknown",
+        relatedId = user.RelatedId,
+        fullName = patientName
+    });
+}
+
 
     public class LoginRequestDTO
     {
         public string Username { get; set; }
         public string Password { get; set; }
     }
+}
 }

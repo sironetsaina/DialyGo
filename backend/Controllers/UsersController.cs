@@ -28,7 +28,7 @@ namespace backend.Controllers
                     RoleId = u.RoleId,  // No null check since it's non-nullable
                     RoleName = u.Role != null ? u.Role.RoleName : "",
                     RelatedId = u.RelatedId,
-                    IsActive = u.IsActive
+                    IsActive = u.IsActive ?? false
                 })
                 .ToListAsync();
 
@@ -48,7 +48,7 @@ namespace backend.Controllers
                     RoleId = u.RoleId,
                     RoleName = u.Role != null ? u.Role.RoleName : "",
                     RelatedId = u.RelatedId,
-                    IsActive = u.IsActive
+                    IsActive = u.IsActive ?? false
                 })
                 .FirstOrDefaultAsync();
 
@@ -82,7 +82,7 @@ namespace backend.Controllers
                 RoleId = user.RoleId,
                 RoleName = (await _context.UserRoles.FindAsync(user.RoleId))?.RoleName ?? "",
                 RelatedId = user.RelatedId,
-                IsActive = user.IsActive
+                IsActive = user.IsActive ?? false
             };
 
             return CreatedAtAction(nameof(GetUser), new { id = user.UserId }, createdDto);

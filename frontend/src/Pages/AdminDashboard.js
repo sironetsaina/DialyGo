@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from "react";
 import "./AdminDashboard.css";
 
+// Updated Admin Dashboard (single-file React component)
+// - Modal for edit/add
+// - Fixed users handling (numbers, isActive, id fields)
+// - Cleaner fetch helpers and error handling
+// - Better truck metrics handling (supports BookingsCount or bookingsCount)
+
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [data, setData] = useState([]);
   const [editItem, setEditItem] = useState(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
   const [overviewMetrics, setOverviewMetrics] = useState({
     totalDoctors: 0,
     totalNurses: 0,
@@ -18,12 +24,14 @@ function AdminDashboard() {
     fullyBookedTrucks: 0,
   });
   const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const API_ADMIN = "http://localhost:5178/api/Admin";
+  const API_ADMIN = process.env.REACT_APP_API_ADMIN || "http://localhost:5178/api/Admin";
 
-  const showMsg = (msg) => {
+  // Toast-like message
+  const showMsg = (msg, ms = 4000) => {
     setMessage(msg);
-    setTimeout(() => setMessage(""), 4000);
+    setTimeout(() => setMessage(""), ms);
   };
 
   const handleBack = () => window.history.back();
@@ -36,30 +44,59 @@ function AdminDashboard() {
 
   const getIdField = () => {
     switch (activeTab) {
-      case "doctors": return "doctorId";
-      case "nurses": return "nurseId";
-      case "patients": return "patientId";
-      case "users": return "userId";
-      case "trucks": return "truckId";
-      default: return "id";
+      case "doctors":
+        return "doctorId";
+      case "nurses":
+        return "nurseId";
+      case "patients":
+        return "patientId";
+      case "users":
+        return "userId"; // backend uses UserId -> serialized as userId
+      case "trucks":
+        return "truckId";
+      default:
+        return "id";
     }
+  };
+
+  const normalizeBookingsCount = (truck) => {
+    // API returns BookingsCount or bookingsCount depending on server serialization.
+    return truck.bookingsCount ?? truck.BookingsCount ?? 0;
   };
 
   const computeTruckMetrics = (trucks) => {
     let fullyBooked = 0;
     let available = 0;
-    trucks.forEach(truck => {
-      if (truck.bookingsCount >= truck.capacity) fullyBooked++;
+    trucks.forEach((truck) => {
+      const bookings = normalizeBookingsCount(truck);
+      const capacity = truck.capacity ?? truck.Capacity ?? 0;
+      if (capacity > 0 && bookings >= capacity) fullyBooked++;
       else available++;
     });
     return { fullyBooked, available };
   };
 
+  // Generic GET helper
+  const fetchJson = async (url, opts) => {
+    const res = await fetch(url, opts);
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || res.statusText);
+    }
+    // Some endpoints return objects/arrays, some return empty on delete
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
+
   const loadOverviewMetrics = async () => {
     try {
+      setLoading(true);
       const [metricsRes, trucksRes] = await Promise.all([
         fetch(`${API_ADMIN}/metrics`),
-        fetch(`${API_ADMIN}/trucks`)
+        fetch(`${API_ADMIN}/trucks`),
       ]);
 
       const metrics = metricsRes.ok ? await metricsRes.json() : {};
@@ -71,12 +108,15 @@ function AdminDashboard() {
         totalDoctors: metrics.totalDoctors || 0,
         totalNurses: metrics.totalNurses || 0,
         totalPatients: metrics.totalPatients || 0,
-        totalTrucks: trucks.length,
+        totalTrucks: Array.isArray(trucks) ? trucks.length : metrics.totalTrucks || 0,
         fullyBookedTrucks: fullyBooked,
         availableTrucks: available,
       });
     } catch (error) {
       console.error("Failed to load metrics:", error);
+      showMsg("Failed to load metrics");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,7 +124,9 @@ function AdminDashboard() {
     try {
       const res = await fetch(`${API_ADMIN}/notifications`);
       if (res.ok) setNotifications(await res.json());
-    } catch {
+      else setNotifications([]);
+    } catch (err) {
+      // Fallback sample notifications
       setNotifications([
         "Truck 2 is fully booked today",
         "Appointment #123 cancelled by patient",
@@ -96,12 +138,17 @@ function AdminDashboard() {
   const loadData = async (tab) => {
     if (tab === "overview") return;
     try {
+      setLoading(true);
       const res = await fetch(`${API_ADMIN}/${tab}`);
       if (!res.ok) throw new Error();
       const result = await res.json();
       setData(Array.isArray(result) ? result : [result]);
-    } catch {
-      showMsg("X Failed to load data");
+    } catch (err) {
+      console.error("Load data error", err);
+      showMsg("Failed to load data");
+      setData([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -112,99 +159,148 @@ function AdminDashboard() {
     } else {
       loadData(activeTab);
     }
-    setShowAddForm(false);
+    // Reset modals and forms when switching tabs
+    setIsAddModalOpen(false);
     setEditItem(null);
+    setNewItem({});
   }, [activeTab]);
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this record?")) return;
     try {
-      const res = await fetch(`${API_ADMIN}/${activeTab}/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      await fetchJson(`${API_ADMIN}/${activeTab}/${id}`, { method: "DELETE" });
       showMsg("Deleted successfully!");
-      loadData(activeTab);
-    } catch {
+      await loadData(activeTab);
+    } catch (err) {
+      console.error(err);
       showMsg("Delete failed.");
     }
   };
 
+  const preparePayloadForTab = (payload, tab) => {
+    // Ensure numeric fields are numbers and strip id fields as necessary
+    const p = { ...payload };
+    if (tab === "users") {
+      // Backend expects UserCreateDto (no userId in body)
+      delete p.userId;
+      delete p.id;
+      if (p.roleId !== undefined) p.roleId = Number(p.roleId);
+      if (p.relatedId !== undefined && p.relatedId !== null && p.relatedId !== "") p.relatedId = Number(p.relatedId);
+      if (p.isActive === undefined) p.isActive = true;
+    }
+
+    if (tab === "trucks") {
+      delete p.truckId;
+      if (p.capacity !== undefined) p.capacity = Number(p.capacity);
+      if (p.bookingsCount !== undefined) p.bookingsCount = Number(p.bookingsCount);
+    }
+
+    if (tab === "doctors" || tab === "nurses") {
+      delete p.doctorId;
+      delete p.nurseId;
+      delete p.id;
+    }
+
+    return p;
+  };
+
   const handleUpdate = async (id, tab) => {
     try {
-      const res = await fetch(`${API_ADMIN}/${tab}/${id}`, {
+      const payload = preparePayloadForTab(editItem, tab);
+      await fetchJson(`${API_ADMIN}/${tab}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editItem),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error();
       showMsg("Updated successfully!");
       setEditItem(null);
-      loadData(tab);
-    } catch {
+      await loadData(tab);
+    } catch (err) {
+      console.error(err);
       showMsg("Update failed.");
     }
   };
 
-  const handleAdd = async () => {
-    if (activeTab === "patients") {
+  const handleAdd = async (tab) => {
+    if (tab === "patients") {
       showMsg("Patients can only be viewed.");
       return;
     }
     try {
-      const res = await fetch(`${API_ADMIN}/${activeTab}`, {
+      const payload = preparePayloadForTab(newItem, tab);
+      await fetchJson(`${API_ADMIN}/${tab}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newItem),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error();
       showMsg("Added successfully!");
       setNewItem({});
-      setShowAddForm(false);
-      loadData(activeTab);
-    } catch {
+      setIsAddModalOpen(false);
+      await loadData(tab);
+    } catch (err) {
+      console.error(err);
       showMsg("Failed to add new record.");
     }
   };
 
+  const idField = getIdField();
+
   const filteredData = data.filter((item) => {
-    const idField = getIdField();
     const term = searchTerm.toLowerCase();
+    const idVal = (item[idField] ?? item[idField.charAt(0).toUpperCase() + idField.slice(1)])?.toString() ?? "";
     return (
-      item[idField]?.toString().toLowerCase().includes(term) ||
-      item.name?.toLowerCase().includes(term)
+      idVal.toLowerCase().includes(term) ||
+      (item.name ?? item.Name ?? "").toString().toLowerCase().includes(term) ||
+      (item.username ?? "").toLowerCase().includes(term)
     );
   });
 
+  const handleChangeIn = (objSetter) => (key, value) => objSetter((prev) => ({ ...prev, [key]: value }));
+
   const renderFormFields = (item, setItem) => {
-    const handleChange = (key, value) => setItem({ ...item, [key]: value });
+    const handleChange = handleChangeIn(setItem);
+
     switch (activeTab) {
       case "doctors":
       case "nurses":
         return (
           <>
-            <input placeholder="Name" value={item.name || ""} onChange={(e) => handleChange("name", e.target.value)} />
-            <input placeholder="Email" value={item.email || ""} onChange={(e) => handleChange("email", e.target.value)} />
-            {activeTab === "doctors" && <input placeholder="Specialization" value={item.specialization || ""} onChange={(e) => handleChange("specialization", e.target.value)} />}
-            <input placeholder="Phone Number" value={item.phoneNumber || ""} onChange={(e) => handleChange("phoneNumber", e.target.value)} />
+            <input placeholder="Name" value={item.name || item.Name || ""} onChange={(e) => handleChange("name", e.target.value)} />
+            <input placeholder="Email" value={item.email || item.Email || ""} onChange={(e) => handleChange("email", e.target.value)} />
+            {activeTab === "doctors" && (
+              <input placeholder="Specialization" value={item.specialization || item.Specialization || ""} onChange={(e) => handleChange("specialization", e.target.value)} />
+            )}
+            <input placeholder="Phone Number" value={item.phoneNumber || item.PhoneNumber || ""} onChange={(e) => handleChange("phoneNumber", e.target.value)} />
           </>
         );
+
       case "users":
         return (
           <>
-            <input placeholder="Username" value={item.username || ""} onChange={(e) => handleChange("username", e.target.value)} />
-            <input placeholder="Password" type="password" value={item.password || ""} onChange={(e) => handleChange("password", e.target.value)} />
-            <input placeholder="Role ID" value={item.roleId || ""} onChange={(e) => handleChange("roleId", e.target.value)} />
-            <input placeholder="Related ID" value={item.relatedId || ""} onChange={(e) => handleChange("relatedId", e.target.value)} />
+            <input placeholder="Username" value={item.username || item.Username || ""} onChange={(e) => handleChange("username", e.target.value)} />
+
+            <input placeholder="Password" type="password" value={item.password || item.Password || ""} onChange={(e) => handleChange("password", e.target.value)} />
+
+            <input placeholder="Role ID" type="number" value={item.roleId ?? item.RoleId ?? ""} onChange={(e) => handleChange("roleId", Number(e.target.value))} />
+
+            <input placeholder="Related ID" type="number" value={item.relatedId ?? item.RelatedId ?? ""} onChange={(e) => handleChange("relatedId", e.target.value === "" ? null : Number(e.target.value))} />
+
+            <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input type="checkbox" checked={item.isActive ?? item.IsActive ?? true} onChange={(e) => handleChange("isActive", e.target.checked)} /> Active
+            </label>
           </>
         );
+
       case "trucks":
         return (
           <>
-            <input placeholder="License Plate" value={item.licensePlate || ""} onChange={(e) => handleChange("licensePlate", e.target.value)} />
-            <input placeholder="Current Location" value={item.currentLocation || ""} onChange={(e) => handleChange("currentLocation", e.target.value)} />
-            <input placeholder="Capacity" type="number" value={item.capacity || ""} onChange={(e) => handleChange("capacity", e.target.value)} />
-            <input placeholder="Bookings Count" type="number" value={item.bookingsCount || 0} onChange={(e) => handleChange("bookingsCount", e.target.value)} />
+            <input placeholder="License Plate" value={item.licensePlate || item.LicensePlate || ""} onChange={(e) => handleChange("licensePlate", e.target.value)} />
+            <input placeholder="Current Location" value={item.currentLocation || item.CurrentLocation || ""} onChange={(e) => handleChange("currentLocation", e.target.value)} />
+            <input placeholder="Capacity" type="number" value={item.capacity ?? item.Capacity ?? ""} onChange={(e) => handleChange("capacity", Number(e.target.value))} />
+            <input placeholder="Bookings Count" type="number" value={item.bookingsCount ?? item.BookingsCount ?? 0} onChange={(e) => handleChange("bookingsCount", Number(e.target.value))} />
           </>
         );
+
       default:
         return <p>No editable fields for this category.</p>;
     }
@@ -221,6 +317,7 @@ function AdminDashboard() {
         <div className="metric-card"><h3>Available Trucks</h3><p className="metric-value">{overviewMetrics.availableTrucks}</p></div>
         <div className="metric-card"><h3>Fully Booked Trucks</h3><p className="metric-value">{overviewMetrics.fullyBookedTrucks}</p></div>
       </div>
+
       <div className="notifications-section">
         <h3>Alerts & Notifications</h3>
         <ul>{notifications.map((note, i) => <li key={i}>{note}</li>)}</ul>
@@ -258,24 +355,17 @@ function AdminDashboard() {
             <div className="top-controls">
               <input
                 type="text"
-                placeholder={`Search by name or ${getIdField()}...`}
+                placeholder={`Search by name or ${idField}...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+
               {activeTab !== "patients" && (
-                <button className="add-btn" onClick={() => setShowAddForm(!showAddForm)}>
-                  {showAddForm ? "Cancel" : "Add New"}
+                <button className="add-btn" onClick={() => { setIsAddModalOpen(true); setNewItem({}); }}>
+                  Add New
                 </button>
               )}
             </div>
-
-            {showAddForm && activeTab !== "patients" && (
-              <div className="form-card">
-                <h3>Add New {activeTab.slice(0, -1)}</h3>
-                {renderFormFields(newItem, setNewItem)}
-                <button onClick={handleAdd}>Save</button>
-              </div>
-            )}
 
             <div className="data-table">
               <table>
@@ -287,56 +377,79 @@ function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.length > 0 ? (
-                    filteredData.map((item) => (
-                      <tr key={item[getIdField()]}>
-                        {Object.keys(item).map((key, i) => <td key={i}>{item[key]?.toString()}</td>)}
-                        {activeTab === "trucks" && (
+                  {loading ? (
+                    <tr><td colSpan="100%">Loading...</td></tr>
+                  ) : filteredData.length > 0 ? (
+                    filteredData.map((item) => {
+                      const keyVal = item[idField] ?? item[idField.charAt(0).toUpperCase() + idField.slice(1)];
+                      return (
+                        <tr key={keyVal ?? JSON.stringify(item)}>
+                          {Object.keys(item).map((k, i) => <td key={i}>{String(item[k])}</td>)}
+                          {activeTab === "trucks" && (
+                            <td>
+                              {(normalizeBookingsCount(item) >= (item.capacity ?? item.Capacity ?? 0)) ? (
+                                <span style={{ color: "red", fontWeight: "bold" }}>Fully Booked</span>
+                              ) : (
+                                <span style={{ color: "green", fontWeight: "bold" }}>Available</span>
+                              )}
+                            </td>
+                          )}
                           <td>
-                            {item.bookingsCount >= item.capacity ? (
-                              <span style={{ color: "red", fontWeight: "bold" }}>Fully Booked</span>
+                            {activeTab === "patients" ? (
+                              item.phoneNumber ?? item.PhoneNumber ?? ""
                             ) : (
-                              <span style={{ color: "green", fontWeight: "bold" }}>Available</span>
+                              <>
+                                <button className="edit-btn" onClick={() => setEditItem(item)}>
+                                  Edit
+                                </button>
+                                <button className="delete-btn" onClick={() => handleDelete(item[idField] ?? item[idField.charAt(0).toUpperCase() + idField.slice(1)])}>
+                                  Delete
+                                </button>
+                              </>
                             )}
                           </td>
-                        )}
-                        <td>
-                          {activeTab === "patients" ? (
-                            item.phoneNumber
-                          ) : (
-                            <>
-                              <button
-                                className="edit-btn"
-                                onClick={() => setEditItem(item)}
-                                disabled={activeTab === "trucks" && item.bookingsCount >= item.capacity}
-                              >
-                                Edit
-                              </button>
-                              <button className="delete-btn" onClick={() => handleDelete(item[getIdField()])}>
-                                Delete
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr><td colSpan="100%">No records found</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-
-            {editItem && (
-              <div className="form-card">
-                <h3>Edit {activeTab.slice(0, -1)}</h3>
-                {renderFormFields(editItem, setEditItem)}
-                <button onClick={() => handleUpdate(editItem[getIdField()], activeTab)}>Save Changes</button>
-                <button className="cancel-btn" onClick={() => setEditItem(null)}>Cancel</button>
-              </div>
-            )}
           </>
         )}
+
+        {/* Edit Modal */}
+        {editItem && (
+          <div className="modal-overlay" onClick={() => setEditItem(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Edit {activeTab.slice(0, -1)}</h3>
+              {renderFormFields(editItem, setEditItem)}
+
+              <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+                <button onClick={() => handleUpdate(editItem[idField] ?? editItem[idField.charAt(0).toUpperCase() + idField.slice(1)], activeTab)}>Save</button>
+                <button className="cancel-btn" onClick={() => setEditItem(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Modal */}
+        {isAddModalOpen && (
+          <div className="modal-overlay" onClick={() => setIsAddModalOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Add New {activeTab.slice(0, -1)}</h3>
+              {renderFormFields(newItem, setNewItem)}
+
+              <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+                <button onClick={() => handleAdd(activeTab)}>Save</button>
+                <button className="cancel-btn" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );

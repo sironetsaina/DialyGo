@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "./DoctorDashboard.css";
 
 function DoctorDashboard() {
@@ -166,12 +167,17 @@ function DoctorDashboard() {
   };
 
   // ---------------- LOGOUT ----------------
-  const logout = () => {
-    setConfirmedDoctor(null);
-    setDoctorId("");
-    setPatient(null);
-    setActiveTab("overview");
-  };
+ const navigate = useNavigate();
+
+const logout = () => {
+  setConfirmedDoctor(null);
+  setDoctorId("");
+  setPatient(null);
+  setActiveTab("overview");
+
+  navigate("/");  // ✅ Go back to Home page
+};
+
 
   // ---------------- HELPER TABLE COMPONENT ----------------
   const PatientsTable = ({ data }) => {

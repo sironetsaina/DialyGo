@@ -69,3 +69,17 @@ input {
   margin-top: 1rem;
   font-weight: bold;
 }
+.back-btn {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: bold;
+  color: #2f80ed;
+  transition: 0.2s;
+}
+
+.back-btn:hover {
+  color: #1c5db0;
+}

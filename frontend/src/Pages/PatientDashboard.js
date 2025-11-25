@@ -35,6 +35,8 @@ function PatientDashboard() {
     try {
       const res = await fetch(`${API_PATIENT}/notifications/${pid}`);
       const data = await res.json();
+
+      // Support missed appointment notifications
       setNotifications(data.map((n) => n.message));
     } catch {
       console.log("Failed to load notifications");
@@ -58,18 +60,21 @@ function PatientDashboard() {
       showMsg("Please enter your Patient ID.");
       return;
     }
+
     try {
       const res = await fetch(`${API_PATIENT}/${patientId}`);
       if (!res.ok) throw new Error();
 
       const data = await res.json();
       setPatient(data);
+
+      // appointmentID now has: truckId, truckPlate, truckLocation
       setAppointments(data.appointmentID || []);
 
       // Load notifications separately
       loadNotifications(patientId);
-
       loadAvailableTrucks();
+
       showMsg("Patient data loaded successfully!");
     } catch {
       showMsg("Unable to find patient. Check your ID.");
@@ -143,21 +148,32 @@ function PatientDashboard() {
       const res = await fetch(`${API_PATIENT}/appointments/cancel/${id}`, {
         method: "POST",
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg);
+      }
 
+      const data = await res.json();
       showMsg(`✅ ${data.message}`);
 
       await loadNotifications(patientId);
       await handleFetchPatient();
-    } catch {
-      showMsg("Failed to cancel appointment.");
+    } catch (e) {
+      showMsg(e.message || "Failed to cancel appointment.");
     }
   };
 
-  const getTruckInfo = (truckId) => {
-    const truck = availableTrucks.find((t) => t.truckId === truckId);
-    return truck ? `${truck.licensePlate} — ${truck.currentLocation}` : truckId;
+  // -------------------- Truck Info Helper --------------------
+  const getTruckInfo = (appt) => {
+    // Use new backend DTO fields (truckPlate & truckLocation)
+    if (appt.truckPlate && appt.truckLocation)
+      return `${appt.truckPlate} — ${appt.truckLocation}`;
+
+    // fallback
+    const truck = availableTrucks.find((t) => t.truckId === appt.truckId);
+    return truck
+      ? `${truck.licensePlate} — ${truck.currentLocation}`
+      : appt.truckId;
   };
 
   // -------------------------------------------------------------
@@ -320,14 +336,23 @@ function PatientDashboard() {
                     <tbody>
                       {appointments.map((appt) => (
                         <tr key={appt.appointmentId}>
-                          <td>{getTruckInfo(appt.truckId)}</td>
+                          <td>{getTruckInfo(appt)}</td>
                           <td>{new Date(appt.appointmentDate).toLocaleString()}</td>
                           <td>{appt.status}</td>
+
                           <td>
-                            {appt.status !== "Cancelled" && (
+                            {/* 
+                                DISABLE CANCEL BUTTON FOR:
+                                - Completed
+                                - Cancelled
+                                - Missed 
+                            */}
+                            {appt.status === "Scheduled" && (
                               <button
                                 className="delete-btn"
-                                onClick={() => handleCancelAppointment(appt.appointmentId)}
+                                onClick={() =>
+                                  handleCancelAppointment(appt.appointmentId)
+                                }
                               >
                                 🗑️ Cancel
                               </button>
@@ -365,5 +390,3 @@ function PatientDashboard() {
 }
 
 export default PatientDashboard;
-
-

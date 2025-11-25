@@ -109,17 +109,25 @@ namespace backend.Controllers
                     .OrderByDescending(a => a.AppointmentDate)
                     .FirstOrDefaultAsync();
 
-                if (latestAppointment != null)
-                {
-                    _context.TreatmentRecords.Add(new TreatmentRecord
-                    {
-                        PatientId = id,
-                        AppointmentId = latestAppointment.AppointmentId,
-                        Diagnosis = dto.MedicalHistory,
-                        TreatmentDetails = "Updated medical history",
-                        TreatmentDate = DateTime.UtcNow
-                    });
-                }
+               if (latestAppointment != null)
+{
+    // Mark appointment as seen today
+    latestAppointment.Status = "Completed";
+    latestAppointment.AppointmentDate = DateTime.UtcNow;  // IMPORTANT FIX
+    latestAppointment.Notes = "Medical history updated - counted as seen";
+
+    _context.TreatmentRecords.Add(new TreatmentRecord
+    {
+        PatientId = id,
+        AppointmentId = latestAppointment.AppointmentId,
+        Diagnosis = dto.MedicalHistory,
+        TreatmentDetails = "Updated medical history",
+        TreatmentDate = DateTime.UtcNow
+    });
+
+    _context.Entry(latestAppointment).State = EntityState.Modified;
+}
+
             }
 
             _context.Entry(patient).State = EntityState.Modified;
@@ -265,7 +273,6 @@ public async Task<ActionResult<NurseCreateDto>> GetNurseById(int id)
         PhoneNumber = nurse.PhoneNumber
     });
 }
-        // ---------------- 8️⃣ COMPLETE APPOINTMENT ----------------
         [HttpPut("appointments/{appointmentId}/complete")]
         public async Task<IActionResult> CompleteAppointment(int appointmentId, [FromBody] AppointmentUpdateDto dto)
         {
