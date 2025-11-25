@@ -19,9 +19,7 @@ namespace backend.Controllers
             _smsService = smsService;
         }
 
-        // ============================================================
-        // GET PATIENT DETAILS
-        // ============================================================
+       
         [HttpGet("{patientId}")]
         public async Task<ActionResult<PatientDetailDto>> GetPatient(int patientId)
         {
@@ -62,9 +60,7 @@ namespace backend.Controllers
             return Ok(patient);
         }
 
-        // ============================================================
-        // GET TRUCKS
-        // ============================================================
+        
         [HttpGet("trucks")]
         public async Task<ActionResult<IEnumerable<TruckDto>>> GetTrucks()
         {
@@ -81,9 +77,7 @@ namespace backend.Controllers
             return Ok(trucks);
         }
 
-        // ============================================================
-        // GET AVAILABLE SLOTS FOR TRUCK
-        // ============================================================
+       
         [HttpGet("appointments/available/{truckId}/{date}")]
         public async Task<ActionResult<IEnumerable<string>>> GetAvailableSlots(int truckId, string date)
         {
@@ -117,9 +111,7 @@ namespace backend.Controllers
             return Ok(slots);
         }
 
-        // ============================================================
-        // BOOK APPOINTMENT
-        // ============================================================
+        
         [HttpPost("appointments")]
         public async Task<ActionResult> BookAppointment([FromBody] AppointmentCreateDto dto)
         {
@@ -150,7 +142,6 @@ namespace backend.Controllers
             _context.Appointments.Add(newAppointment);
             await _context.SaveChangesAsync();
 
-            // ========== SEND NOTIFICATION ==========
             var message =
                 $"Your appointment for {dto.AppointmentDate:dddd, MMM dd yyyy HH:mm} on truck {truck.LicensePlate} has been booked.";
 
@@ -175,9 +166,7 @@ namespace backend.Controllers
             return Ok(new { Message = message });
         }
 
-        // ============================================================
-        // CANCEL APPOINTMENT — except completed/missed
-        // ============================================================
+      
         [HttpPost("appointments/cancel/{appointmentId}")]
         public async Task<ActionResult> CancelAppointment(int appointmentId)
         {
@@ -222,9 +211,7 @@ namespace backend.Controllers
             return Ok(new { Message = "Appointment cancelled." });
         }
 
-        // ============================================================
-        // MANUAL MISSED CHECK (still useful for testing)
-        // ============================================================
+       
         [HttpPost("appointments/check-missed")]
         public async Task<ActionResult> CheckMissedAppointments()
         {
@@ -265,9 +252,7 @@ namespace backend.Controllers
             return Ok(new { Message = "Missed appointments processed." });
         }
 
-        // ============================================================
-        // SSE REAL-TIME NOTIFICATION STREAM
-        // ============================================================
+     
         [HttpGet("notifications/stream/{patientId}")]
         public async Task GetNotificationStream(int patientId)
         {
@@ -290,9 +275,7 @@ namespace backend.Controllers
             }
         }
 
-        // ============================================================
-        // GET PATIENT NOTIFICATION LIST
-        // ============================================================
+        
         [HttpGet("notifications/{patientId}")]
         public async Task<ActionResult<IEnumerable<Smsnotification>>> GetNotifications(int patientId)
         {

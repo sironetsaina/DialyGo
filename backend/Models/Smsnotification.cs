@@ -20,5 +20,4 @@ public partial class Smsnotification
     public string? SenderRole { get; set; }
 
     public virtual Patient Patient { get; set; } = null!;
-    //public DateTime CreatedAt { get; internal set; }
 }

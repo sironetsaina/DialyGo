@@ -91,7 +91,7 @@ public partial class MobileDialysisDbContext : DbContext
             entity.Property(e => e.AppointmentDate)
                 .HasColumnType("datetime")
                 .HasColumnName("appointmentDate");
-           // entity.Property(e => e.DoctorId).HasColumnName("doctorId");
+           
             entity.Property(e => e.Notes)
                 .HasColumnType("text")
                 .HasColumnName("notes");
@@ -103,9 +103,7 @@ public partial class MobileDialysisDbContext : DbContext
                 .HasColumnName("status");
             entity.Property(e => e.TruckId).HasColumnName("truckId");
 
-           // entity.HasOne(d => d.Doctor).WithMany(p => p.Appointments)
-             //   .HasForeignKey(d => d.DoctorId)
-              //  .HasConstraintName("appointment_ibfk_2");
+          
 
             entity.HasOne(d => d.Nurse).WithMany(p => p.Appointments)
                 .HasForeignKey(d => d.NurseId)

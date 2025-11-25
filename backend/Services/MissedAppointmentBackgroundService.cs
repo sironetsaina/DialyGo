@@ -54,7 +54,7 @@ namespace backend.Services
 
             foreach (var appt in missedAppointments)
             {
-                // mark as missed
+                
                 appt.Status = "Missed";
 
                 var patient = await db.Patients.FindAsync(new object[] { appt.PatientId }, cancellationToken);

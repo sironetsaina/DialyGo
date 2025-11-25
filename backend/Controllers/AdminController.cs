@@ -192,7 +192,7 @@ namespace backend.Controllers
             return Ok(patients);
         }
 
-        // ================= TRUCK CRUD =================
+        
        
         [HttpGet("trucks")]
 public async Task<ActionResult<IEnumerable<object>>> GetTrucks()
@@ -205,7 +205,7 @@ public async Task<ActionResult<IEnumerable<object>>> GetTrucks()
             t.CurrentLocation,
             t.Capacity,
 
-            // NEW: Number of bookings from Appointment table
+            // NEW Number of bookings from  theAppointment table
             BookingsCount = _context.Appointments.Count(a => a.TruckId == t.TruckId)
         })
         .ToListAsync();
@@ -252,10 +252,7 @@ public async Task<ActionResult<IEnumerable<object>>> GetTrucks()
             await _context.SaveChangesAsync();
             return NoContent();
         }
-// ================= METRICS =================
 
-// GET api/Admin/patients/{id}
-// Retrieves full patient details along with their appointments
 [HttpGet("patients/{id}")]
 public async Task<ActionResult<object>> GetPatientWithAppointments(int id)
 {
@@ -320,9 +317,6 @@ public async Task<IActionResult> GetMetrics()
         return StatusCode(500, "Error retrieving metrics: " + ex.Message);
     }
 }
-
-
-
 
 
 

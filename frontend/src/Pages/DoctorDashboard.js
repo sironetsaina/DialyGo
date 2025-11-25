@@ -30,7 +30,7 @@ function DoctorDashboard() {
 
   const API_BASE = "http://localhost:5178/api";
 
-  // ---------------- CONFIRM DOCTOR ----------------
+  // CONFIRM DOCTOR 
   const confirmDoctor = async () => {
     if (!doctorId) return setMessage("Please enter Doctor ID");
 
@@ -49,7 +49,7 @@ function DoctorDashboard() {
     }
   };
 
-  // ---------------- FETCH PATIENT ----------------
+  // FETCH PATIENT 
   const fetchPatient = async () => {
     if (!patientId) return setMessage("Enter patient ID");
 
@@ -68,7 +68,7 @@ function DoctorDashboard() {
     }
   };
 
-  // ---------------- FETCH TREATMENTS ----------------
+  //  FETCH TREATMENTS 
   const fetchTreatments = async (id) => {
     try {
       const res = await fetch(`${API_BASE}/Doctor/patients/${id}/treatments`);
@@ -79,7 +79,7 @@ function DoctorDashboard() {
     } catch {}
   };
 
-  // ---------------- FETCH PATIENTS SEEN TODAY ----------------
+  //  FETCH PATIENTS SEEN TODAY 
   const fetchPatientsSeenToday = async () => {
     try {
       const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -95,7 +95,7 @@ function DoctorDashboard() {
     }
   };
 
-  // ---------------- FETCH PATIENTS SEEN ON DATE ----------------
+  // FETCH PATIENTS SEEN ON DATE 
   const fetchSeenOnDate = async (date) => {
     try {
       const res = await fetch(`${API_BASE}/Doctor/patients-seen?date=${date}`);
@@ -110,7 +110,7 @@ function DoctorDashboard() {
     }
   };
 
-  // ---------------- ADD TREATMENT ----------------
+  //  ADD TREATMENT 
   const addTreatment = async () => {
     if (!newTreatment.diagnosis || !newTreatment.treatmentDetails) {
       return setMessage("Diagnosis and treatment are required.");
@@ -135,7 +135,7 @@ function DoctorDashboard() {
     }
   };
 
-  // ---------------- UPDATE EXISTING TREATMENT ----------------
+  // UPDATE EXISTING TREATMENT 
   const updateTreatment = async (treatmentId) => {
     if (!editingTreatment.diagnosis || !editingTreatment.treatmentDetails) {
       return setMessage("All fields are required.");
@@ -152,13 +152,13 @@ function DoctorDashboard() {
 
       setEditingTreatmentId(null);
       fetchTreatments(patientId);
-      setMessage("✅ Treatment updated.");
+      setMessage("Treatment updated.");
     } catch {
-      setMessage("❌ Failed to update treatment.");
+      setMessage("Failed to update treatment.");
     }
   };
 
-  // ---------------- BACK ----------------
+  //  BACK 
   const backToSearch = () => {
     setPatient(null);
     setPatientId("");
@@ -166,7 +166,7 @@ function DoctorDashboard() {
     setMessage("");
   };
 
-  // ---------------- LOGOUT ----------------
+  //  LOGOUT 
  const navigate = useNavigate();
 
 const logout = () => {
@@ -179,7 +179,7 @@ const logout = () => {
 };
 
 
-  // ---------------- HELPER TABLE COMPONENT ----------------
+  //  HELPER TABLE COMPONENT 
   const PatientsTable = ({ data }) => {
     if (data.length === 0) return <p>No patients found</p>;
     return (

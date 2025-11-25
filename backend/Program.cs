@@ -4,9 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ----------------------------------------
-// SERVICES
-// ----------------------------------------
+
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 
@@ -42,9 +40,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// ----------------------------------------
 // MIDDLEWARE
-// ----------------------------------------
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -58,10 +55,7 @@ app.UseAuthorization();
 // Apply CORS
 app.UseCors("AllowFrontend");
 
-// ----------------------------------------
 // ROUTING
-// ----------------------------------------
 app.MapControllers();
 
-// ----------------------------------------
 app.Run();

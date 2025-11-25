@@ -17,7 +17,7 @@ function PatientDashboard() {
 
   const API_PATIENT = "http://localhost:5178/api/Patient";
 
-  // -------------------- Helpers --------------------
+  //  Helpers
   const showMsg = (msg) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 4000);
@@ -30,7 +30,7 @@ function PatientDashboard() {
     }
   };
 
-  // -------------------- Fetch Notifications --------------------
+  //  Fetch Notifications 
   const loadNotifications = async (pid) => {
     try {
       const res = await fetch(`${API_PATIENT}/notifications/${pid}`);
@@ -43,7 +43,7 @@ function PatientDashboard() {
     }
   };
 
-  // -------------------- Load Trucks --------------------
+  //  Load Trucks 
   const loadAvailableTrucks = async () => {
     try {
       const res = await fetch(`${API_PATIENT}/trucks`);
@@ -54,7 +54,6 @@ function PatientDashboard() {
     }
   };
 
-  // -------------------- Fetch Patient --------------------
   const handleFetchPatient = async () => {
     if (!patientId.trim()) {
       showMsg("Please enter your Patient ID.");
@@ -67,7 +66,6 @@ function PatientDashboard() {
 
       const data = await res.json();
       setPatient(data);
-
       // appointmentID now has: truckId, truckPlate, truckLocation
       setAppointments(data.appointmentID || []);
 
@@ -81,7 +79,7 @@ function PatientDashboard() {
     }
   };
 
-  // -------------------- Load Available Slots --------------------
+  //  Load Available Slots 
   useEffect(() => {
     const fetchSlots = async () => {
       if (!selectedTruck || !appointmentDate) return;
@@ -100,7 +98,7 @@ function PatientDashboard() {
     fetchSlots();
   }, [selectedTruck, appointmentDate]);
 
-  // -------------------- Book Appointment --------------------
+  //  Book Appointment
   const handleBookAppointment = async () => {
     if (!selectedTruck || !appointmentDate || !selectedSlot) {
       showMsg("Please select a truck, date, and time slot.");
@@ -130,18 +128,18 @@ function PatientDashboard() {
       }
 
       const data = await res.json();
-      showMsg(`✅ ${data.message}`);
+      showMsg(` ${data.message}`);
 
       await loadNotifications(patientId);
       await handleFetchPatient();
     } catch (error) {
-      showMsg(`❌ Failed to book appointment: ${error.message}`);
+      showMsg(` Failed to book appointment: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // -------------------- Cancel Appointment --------------------
+  //  Cancel Appointment 
   const handleCancelAppointment = async (id) => {
     if (!window.confirm("Cancel this appointment?")) return;
     try {
@@ -163,7 +161,7 @@ function PatientDashboard() {
     }
   };
 
-  // -------------------- Truck Info Helper --------------------
+  // Truck Info Helper -
   const getTruckInfo = (appt) => {
     // Use new backend DTO fields (truckPlate & truckLocation)
     if (appt.truckPlate && appt.truckLocation)
@@ -176,9 +174,7 @@ function PatientDashboard() {
       : appt.truckId;
   };
 
-  // -------------------------------------------------------------
-  // JSX
-  // -------------------------------------------------------------
+  
   return (
     <div className="patient-dashboard">
       <aside className="sidebar">
@@ -205,7 +201,7 @@ function PatientDashboard() {
           )}
         </ul>
         <button className="logout-btn" onClick={handleLogout}>
-          🚪 Logout
+          Logout
         </button>
       </aside>
 
@@ -354,7 +350,7 @@ function PatientDashboard() {
                                   handleCancelAppointment(appt.appointmentId)
                                 }
                               >
-                                🗑️ Cancel
+                                 Cancel
                               </button>
                             )}
                           </td>

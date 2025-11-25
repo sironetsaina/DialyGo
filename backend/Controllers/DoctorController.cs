@@ -16,7 +16,6 @@ namespace backend.Controllers
             _context = context;
         }
 
-        // -------------------- GET DOCTOR --------------------
         [HttpGet("{doctorId}")]
         public async Task<IActionResult> GetDoctor(int doctorId)
         {
@@ -33,7 +32,6 @@ namespace backend.Controllers
             });
         }
 
-        // -------------------- GET PATIENT --------------------
         [HttpGet("patients/{patientId}")]
         public async Task<IActionResult> GetPatient(int patientId)
         {
@@ -53,7 +51,6 @@ namespace backend.Controllers
             });
         }
 
-        // -------------------- GET PATIENT TREATMENTS --------------------
         [HttpGet("patients/{patientId}/treatments")]
         public async Task<IActionResult> GetPatientTreatmentSummary(int patientId)
         {
@@ -71,7 +68,6 @@ namespace backend.Controllers
             return Ok(treatments);
         }
 
-        // -------------------- UPDATE PATIENT DIAGNOSIS + ADD TREATMENT --------------------
         [HttpPut("patients/{patientId}/update")]
         public async Task<IActionResult> UpdatePatientDiagnosisAndTreatment(int patientId, [FromBody] TreatmentSummaryDto dto)
         {
@@ -108,7 +104,6 @@ namespace backend.Controllers
             return Ok("Patient diagnosis and treatment updated successfully.");
         }
 
-        // -------------------- UPDATE EXISTING TREATMENT --------------------
         [HttpPut("treatment/{treatmentId}")]
         public async Task<IActionResult> UpdateTreatmentDetails(int treatmentId, [FromBody] TreatmentSummaryDto dto)
         {
@@ -125,7 +120,6 @@ namespace backend.Controllers
             return Ok("Treatment record updated successfully.");
         }
 
-        // -------------------- PATIENTS SEEN TODAY --------------------
         [HttpGet("patients-seen-today")]
         public async Task<IActionResult> GetPatientsSeenToday()
         {
@@ -146,7 +140,6 @@ namespace backend.Controllers
             return Ok(patients);
         }
 
-        // -------------------- PATIENTS SEEN ON SPECIFIC DATE --------------------
         [HttpGet("patients-seen")]
         public async Task<IActionResult> GetPatientsSeenOnDate([FromQuery] string date)
         {

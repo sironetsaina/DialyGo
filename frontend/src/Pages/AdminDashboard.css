@@ -1,6 +1,6 @@
 /* AdminDashboard.css */
 
-/* --- General Layout --- */
+/*  General Layout  */
 body, html {
   margin: 0;
   padding: 0;
@@ -14,7 +14,7 @@ body, html {
   min-height: 100vh;
 }
 
-/* --- Sidebar --- */
+/*  Sidebar  */
 .sidebar {
   width: 220px;
   background-color: #1f2937;
@@ -65,7 +65,7 @@ body, html {
   background-color: #b91c1c;
 }
 
-/* --- Main Content --- */
+/* Main Content */
 .main-content {
   flex-grow: 1;
   padding: 25px;
@@ -102,7 +102,7 @@ body, html {
   font-weight: 500;
 }
 
-/* --- Overview Metrics --- */
+/* Overview Metric */
 .overview-container {
   display: flex;
   flex-direction: column;
@@ -147,7 +147,7 @@ body, html {
   color: #6b7280;
 }
 
-/* --- Alerts Section --- */
+/* Alerts Section */
 .alerts-section {
   margin-top: 20px;
   background-color: #fef3c7;
@@ -173,7 +173,7 @@ body, html {
   color: #92400e;
 }
 
-/* --- Top Controls --- */
+/* Top Controls */
 .top-controls {
   display: flex;
   justify-content: space-between;
@@ -308,7 +308,7 @@ body, html {
   background-color: #b91c1c;
 }
 
-/* --- Responsive --- */
+/* Responsive */
 @media screen and (max-width: 1024px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

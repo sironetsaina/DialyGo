@@ -25,7 +25,7 @@ namespace backend.Controllers
                 {
                     UserId = u.UserId,
                     Username = u.Username,
-                    RoleId = u.RoleId,  // No null check since it's non-nullable
+                    RoleId = u.RoleId,  
                     RoleName = u.Role != null ? u.Role.RoleName : "",
                     RelatedId = u.RelatedId,
                     IsActive = u.IsActive ?? false

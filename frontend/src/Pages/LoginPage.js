@@ -58,7 +58,7 @@ function LoginPage() {
     <div className="login-container">
       <div className="login-card">
 
-        {/* ✅ BACK BUTTON - TOP LEFT */}
+        {/* BACK BUTTON - TOP LEFT */}
         <Link to="/" className="back-btn top-left">← Back to Home</Link>
 
         <h2>DialyGo Login</h2>

@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./AdminDashboard.css";
 
-// Updated Admin Dashboard (single-file React component)
-// - Modal for edit/add
-// - Fixed users handling (numbers, isActive, id fields)
-// - Cleaner fetch helpers and error handling
-// - Better truck metrics handling (supports BookingsCount or bookingsCount)
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -28,7 +23,7 @@ function AdminDashboard() {
 
   const API_ADMIN = process.env.REACT_APP_API_ADMIN || "http://localhost:5178/api/Admin";
 
-  // Toast-like message
+  
   const showMsg = (msg, ms = 4000) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), ms);
@@ -51,7 +46,7 @@ function AdminDashboard() {
       case "patients":
         return "patientId";
       case "users":
-        return "userId"; // backend uses UserId -> serialized as userId
+        return "userId"; 
       case "trucks":
         return "truckId";
       default:
@@ -60,7 +55,6 @@ function AdminDashboard() {
   };
 
   const normalizeBookingsCount = (truck) => {
-    // API returns BookingsCount or bookingsCount depending on server serialization.
     return truck.bookingsCount ?? truck.BookingsCount ?? 0;
   };
 
@@ -83,7 +77,7 @@ function AdminDashboard() {
       const text = await res.text().catch(() => "");
       throw new Error(text || res.statusText);
     }
-    // Some endpoints return objects/arrays, some return empty on delete
+    // catch endpoints returning objects and empty on delete
     try {
       return await res.json();
     } catch {

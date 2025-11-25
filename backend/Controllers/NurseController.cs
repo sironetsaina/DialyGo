@@ -16,7 +16,6 @@ namespace backend.Controllers
             _context = context;
         }
 
-        // ---------------- 1️⃣ REGISTER NEW PATIENT ----------------
         [HttpPost("patients")]
         public async Task<ActionResult<PatientDto>> RegisterPatient([FromBody] PatientCreateDto dto)
         {
@@ -67,7 +66,6 @@ namespace backend.Controllers
             });
         }
 
-        // ---------------- 2️⃣ GET SINGLE PATIENT ----------------
         [HttpGet("patients/{id}")]
         public async Task<ActionResult<PatientDto>> GetPatient(int id)
         {
@@ -86,7 +84,6 @@ namespace backend.Controllers
             });
         }
 
-        // ---------------- 3️⃣ UPDATE PATIENT DETAILS ----------------
         [HttpPut("patients/{id}")]
         public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientUpdateDto dto)
         {
@@ -111,7 +108,6 @@ namespace backend.Controllers
 
                if (latestAppointment != null)
 {
-    // Mark appointment as seen today
     latestAppointment.Status = "Completed";
     latestAppointment.AppointmentDate = DateTime.UtcNow;  // IMPORTANT FIX
     latestAppointment.Notes = "Medical history updated - counted as seen";
@@ -136,7 +132,6 @@ namespace backend.Controllers
             return Ok("Patient details and medical history updated successfully.");
         }
 
-        // ---------------- 4️⃣ GET TREATMENT HISTORY ----------------
         [HttpGet("patients/{id}/treatment-summary")]
         public async Task<ActionResult<IEnumerable<TreatmentEntryDto>>> GetTreatmentSummary(int id)
         {
@@ -155,7 +150,6 @@ namespace backend.Controllers
             return Ok(treatments);
         }
 
-        // ---------------- 5️⃣ GET ALL PATIENTS ----------------
         [HttpGet("patients")]
         public async Task<ActionResult<IEnumerable<PatientDto>>> GetAllPatients()
         {
@@ -175,7 +169,6 @@ namespace backend.Controllers
             return Ok(patients);
         }
 
-        // ---------------- 6️⃣ GET PATIENTS SEEN TODAY ----------------
         [HttpGet("patients/seen-today")]
         public async Task<IActionResult> GetPatientsSeenToday()
         {
@@ -183,7 +176,6 @@ namespace backend.Controllers
             return await GetPatientsSeenByDate(today);
         }
 
-        // ---------------- 7️⃣ GET PATIENTS SEEN ON SPECIFIC DATE ----------------
         [HttpGet("patients/seen-on")]
         public async Task<IActionResult> GetPatientsSeenOnDate([FromQuery] DateTime date)
         {
@@ -237,7 +229,6 @@ namespace backend.Controllers
             return Ok(patients);
         }
 
-        // -------------------- GET APPOINTMENTS BY PATIENT --------------------
 [HttpGet("patients/{patientId}/appointments")]
 public async Task<IActionResult> GetAppointmentsForPatient(int patientId)
 {
@@ -256,7 +247,6 @@ public async Task<IActionResult> GetAppointmentsForPatient(int patientId)
     return Ok(appointments);
 }
 
-// -------------------- GET PATIENTS SEEN BY DATE --------------------
 
 
 [HttpGet("{id}")]

@@ -50,17 +50,17 @@ namespace backend.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"✅ SMS sent successfully to {to}");
+                    Console.WriteLine($" SMS sent successfully to {to}");
                     return true;
                 }
 
                 var error = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"❌ SMS failed: {error}");
+                Console.WriteLine($" SMS failed: {error}");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"🚨 SMS Error: {ex.Message}");
+                Console.WriteLine($"SMS Error: {ex.Message}");
                 return false;
             }
         }
